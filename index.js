@@ -37,6 +37,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
       } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
         
+        // Jeśli komenda pokazała modal, nie możemy odpowiadać
+        if (error.code === 40060) {
+          console.log('Modal was shown, skipping error reply');
+          return;
+        }
+        
         const errorMessage = {
           content: '❌ Wystąpił błąd podczas wykonywania komendy. Spróbuj ponownie później.',
           ephemeral: true,

@@ -79,8 +79,6 @@ module.exports = {
   async handleModal(interaction) {
     if (interaction.customId !== 'dodaj-oferte-modal') return;
 
-    await interaction.deferReply({ ephemeral: true });
-
     try {
       // Pobierz dane z modalu
       const miasto = interaction.fields.getTextInputValue('miasto');
@@ -100,9 +98,8 @@ module.exports = {
 
     } catch (error) {
       console.error('Error in first modal:', error);
-      await interaction.editReply({
-        content: '❌ Wystąpił błąd podczas przetwarzania danych. Spróbuj ponownie.',
-      });
+      // Nie możemy użyć reply bo modal już był zamknięty
+      // Więc po prostu logujemy błąd
     }
   },
 
@@ -164,7 +161,7 @@ module.exports = {
   async handleSecondModal(interaction) {
     if (interaction.customId !== 'dodaj-oferte-modal-2') return;
 
-    await interaction.deferReply({ ephemeral: false });
+    await interaction.deferReply();
 
     try {
       // Pobierz dane z drugiego modala
