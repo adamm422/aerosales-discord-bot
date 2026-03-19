@@ -79,7 +79,7 @@ module.exports = {
     } catch (error) {
       // Jeśli interaction wygasł (3s), ignorujemy błąd
       if (error.code === 40060 || error.code === 10062) {
-        console.log('Interaction expired before showing modal');
+        // Interaction wygasł - nic nie rób
         return;
       }
       throw error;
@@ -96,7 +96,7 @@ module.exports = {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       } catch (deferError) {
         if (deferError.code === 40060 || deferError.code === 10062) {
-          console.log('Interaction expired, cannot defer reply');
+          // Interaction wygasł - nic nie rób
           return;
         }
         throw deferError;
