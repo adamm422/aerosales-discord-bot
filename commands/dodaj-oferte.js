@@ -219,10 +219,15 @@ module.exports = {
           components: [],
         });
       } catch (e) {
-        await interaction.reply({ 
-          content: '❌ Dodawanie oferty zostało anulowane.', 
-          flags: MessageFlags.Ephemeral 
-        });
+        // Jeśli nie możemy updatować, spróbuj odpowiedzieć
+        try {
+          await interaction.reply({
+            content: '❌ Dodawanie oferty zostało anulowane.',
+            flags: MessageFlags.Ephemeral
+          });
+        } catch (e2) {
+          // Ignoruj błąd
+        }
       }
       return true;
     }
@@ -239,11 +244,15 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         } catch (e) {
-          await interaction.update({
-            content: '❌ Sesja wygasła. Rozpocznij dodawanie oferty od nowa.',
-            embeds: [],
-            components: [],
-          });
+          try {
+            await interaction.update({
+              content: '❌ Sesja wygasła. Rozpocznij dodawanie oferty od nowa.',
+              embeds: [],
+              components: [],
+            });
+          } catch (e2) {
+            // Ignoruj błąd
+          }
         }
         return true;
       }
@@ -291,21 +300,22 @@ module.exports = {
       modal.addComponents(row1, row2, row3, row4);
 
       try {
+        // Pokaż modal - to automatycznie "acknowledguje" interakcję
         await interaction.showModal(modal);
+        // NIE updatujemy wiadomości po pokazaniu modalu - Discord tego nie pozwala
       } catch (error) {
         console.error('Error showing modal 2:', error);
         pendingOffers.delete(tempId);
+        // Próbujemy odpowiedzieć tylko jeśli modal się nie pokazał
         try {
-          await interaction.reply({
-            content: '❌ Wystąpił błąd podczas otwierania formularza.',
-            flags: MessageFlags.Ephemeral,
-          });
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+              content: '❌ Wystąpił błąd podczas otwierania formularza.',
+              flags: MessageFlags.Ephemeral,
+            });
+          }
         } catch (e) {
-          await interaction.update({
-            content: '❌ Wystąpił błąd podczas otwierania formularza.',
-            embeds: [],
-            components: [],
-          });
+          // Ignoruj błąd
         }
       }
       return true;
