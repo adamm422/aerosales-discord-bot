@@ -79,8 +79,13 @@ module.exports = {
   async handleModal(interaction) {
     if (interaction.customId !== 'dodaj-oferte-modal') return;
 
-    // Defer reply na początku - operacja GitHub może trwać długo
-    await interaction.deferReply();
+    // Spróbuj deferReply jak najszybciej (3s limit)
+    try {
+      await interaction.deferReply();
+    } catch (deferError) {
+      console.log('Could not defer reply, interaction may have expired');
+      return;
+    }
 
     try {
       // Pobierz dane z modalu
