@@ -92,8 +92,8 @@ function validateCena(cena) {
 }
 
 /**
- * Waliduje datę w formacie polskim
- * @param {string} data - Data w formacie "6 kwietnia 2026" lub "06.04.2026"
+ * Waliduje datę w formacie dd/mm/rrrr
+ * @param {string} data - Data w formacie "dd/mm/rrrr"
  * @returns {object} - { valid: boolean, value: string, error: string|null }
  */
 function validateData(data) {
@@ -103,118 +103,127 @@ function validateData(data) {
 
   const trimmedData = data.trim();
   
-  // Sprawdź czy data jest w poprawnym formacie polskim (np. "6 kwietnia 2026")
-  const polishDateRegex = /^(\d{1,2})\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+(\d{4})$/i;
+  // Sprawdź czy data jest w formacie dd/mm/rrrr
+  const dateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
   
-  if (polishDateRegex.test(trimmedData)) {
-    return { valid: true, value: trimmedData, error: null };
-  }
-  
-  // Spróbuj sparsować inne formaty i przekonwertować na polski
-  const dateObj = new Date(trimmedData);
-  if (!isNaN(dateObj.getTime())) {
-    // Konwertuj na polski format
-    const months = [
-      'stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca',
-      'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'
-    ];
-    const day = dateObj.getDate();
-    const month = months[dateObj.getMonth()];
-    const year = dateObj.getFullYear();
-    
-    return { valid: true, value: `${day} ${month} ${year}`, error: null };
+  if (!dateRegex.test(trimmedData)) {
+    return { valid: false, value: null, error: 'Nieprawidłowy format daty. Użyj formatu: dd/mm/rrrr (np. 15/04/2026)' };
   }
 
-  return { valid: false, value: null, error: 'Nieprawidłowy format daty. Użyj formatu: "6 kwietnia 2026"' };
-}
+  const match = trimmedData.match(dateRegex);
+  const day = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const year = parseInt(match[3], 10);
 
-/**
- * Waliduje kod lotniska IATA
- * @param {string} kod - Kod lotniska (np. "WMI", "CHQ")
- * @returns {object} - { valid: boolean, value: string, error: string|null }
- */
-function validateKodLotniska(kod) {
-  if (!kod || kod.trim() === '') {
-    return { valid: false, value: null, error: 'Kod lotniska jest wymagany' };
+  // Sprawdź czy data jest prawidłowa
+  const dateObj = new Date(year, month - 1, day);
+  if (dateObj.getDate() !== day || dateObj.getMonth() !== month - 1 || dateObj.getFullYear() !== year) {
+    return { valid: false, value: null, error: 'Nieprawidłowa data' };
   }
 
-  const cleanKod = kod.trim().toUpperCase();
-  
-  // Kod IATA to dokładnie 3 litery
-  if (!/^[A-Z]{3}$/.test(cleanKod)) {
-    return { valid: false, value: null, error: 'Kod lotniska musi składać się z dokładnie 3 liter (np. WMI, CHQ)' };
-  }
-
-  return { valid: true, value: cleanKod, error: null };
+  return { valid: true, value: trimmedData, error: null };
 }
 
 /**
  * Waliduje czas lotu
- * @param {string} czas - Czas w formacie "2 godz. 55 min"
+ * @param {string} czas - Czas w formacie "x godz. x min" lub "x h x min" lub samo "x godz"
  * @returns {object} - { valid: boolean, value: string, error: string|null }
  */
-function validateCzas(czas) {
+function validateCzasLotu(czas) {
   if (!czas || czas.trim() === '') {
     return { valid: false, value: null, error: 'Czas lotu jest wymagany' };
   }
 
-  const trimmedCzas = czas.trim();
+  const trimmedCzas = czas.trim().toLowerCase();
   
   // Akceptuj różne formaty:
-  // "2 godz. 55 min", "2h 55m", "2:55", "175 min"
+  // "2 godz. 30 min", "2h 30m", "2:30", "150 min", "2 godz"
   const validPatterns = [
-    /^\d+\s+godz\.?\s+\d+\s+min$/,           // "2 godz. 55 min"
-    /^\d+\s*godz\.?\s*\d*\s*min?$/,          // "2 godz", "2 godz 55 min"
-    /^\d+\s*h\.?\s*\d+\s*m\.?$/,             // "2h 55m"
-    /^\d+:\d+$/,                               // "2:55"
-    /^\d+\s+min$/,                             // "175 min"
-    /^\d+\s*min$/,                             // "175min"
+    /^(\d+)\s*godz\.?\s*(\d+)\s*min$/,      // "2 godz. 30 min", "2 godz 30 min"
+    /^(\d+)\s*godz\.?$/,                      // "2 godz", "2 godz."
+    /^(\d+)\s*h\.?\s*(\d+)\s*m\.?$/,        // "2h 30m"
+    /^(\d+)\s*h\.?$/,                         // "2h"
+    /^(\d+):(\d+)$/,                           // "2:30"
+    /^(\d+)\s*min$/,                           // "150 min"
   ];
   
-  const isValid = validPatterns.some(pattern => pattern.test(trimmedCzas.toLowerCase()));
+  const matchedPattern = validPatterns.find(pattern => pattern.test(trimmedCzas));
   
-  if (!isValid) {
-    return { valid: false, value: null, error: 'Nieprawidłowy format czasu. Użyj: "2 godz. 55 min" lub "2h 55m"' };
+  if (!matchedPattern) {
+    return { valid: false, value: null, error: 'Nieprawidłowy format czasu. Użyj: "2 godz. 30 min" lub "2h 30m" lub "150 min"' };
   }
 
   // Normalizuj do formatu "X godz. Y min"
-  let normalized = trimmedCzas.toLowerCase();
+  let godziny = 0;
+  let minuty = 0;
   
-  // Zamień skróty na pełne formy
-  normalized = normalized
-    .replace(/(\d+)\s*h\.?\s*(\d+)\s*m\.?/, '$1 godz. $2 min')
-    .replace(/(\d+):(\d+)/, '$1 godz. $2 min')
-    .replace(/(\d+)\s*min/, '$1 min');
+  if (/^(\d+)\s*godz\.?$/.test(trimmedCzas)) {
+    // Tylko godziny
+    godziny = parseInt(trimmedCzas.match(/^(\d+)\s*godz\.?$/)[1], 10);
+  } else if (/^(\d+)\s*h\.?$/.test(trimmedCzas)) {
+    // Tylko godziny (skrót)
+    godziny = parseInt(trimmedCzas.match(/^(\d+)\s*h\.?$/)[1], 10);
+  } else if (/^(\d+)\s*min$/.test(trimmedCzas)) {
+    // Tylko minuty
+    minuty = parseInt(trimmedCzas.match(/^(\d+)\s*min$/)[1], 10);
+    godziny = Math.floor(minuty / 60);
+    minuty = minuty % 60;
+  } else {
+    // Format z godzinami i minutami
+    const match = trimmedCzas.match(/^(\d+)\s*(?:godz\.?|h\.?)\s*(?:(\d+)\s*(?:min|m\.?))?$/);
+    if (match) {
+      godziny = parseInt(match[1], 10);
+      minuty = match[2] ? parseInt(match[2], 10) : 0;
+    } else if (/^(\d+):(\d+)$/.test(trimmedCzas)) {
+      const colonMatch = trimmedCzas.match(/^(\d+):(\d+)$/);
+      godziny = parseInt(colonMatch[1], 10);
+      minuty = parseInt(colonMatch[2], 10);
+    }
+  }
 
-  return { valid: true, value: normalized, error: null };
+  // Formatuj wynik
+  if (minuty === 0) {
+    return { valid: true, value: `${godziny} godz.`, error: null };
+  }
+  return { valid: true, value: `${godziny} godz. ${minuty} min`, error: null };
 }
 
 /**
  * Waliduje przesiadki
- * @param {string} przesiadki - Tekst opisujący przesiadki
+ * @param {string} przesiadki - Liczba przesiadek ("0", "1", "2", "bez przesiadek")
  * @returns {object} - { valid: boolean, value: string, error: string|null }
  */
 function validatePrzesiadki(przesiadki) {
   if (!przesiadki || przesiadki.trim() === '') {
-    return { valid: true, value: 'bez przesiadek', error: null };
+    return { valid: true, value: '0', error: null };
   }
 
   const trimmed = przesiadki.trim().toLowerCase();
   
   // Normalizuj odpowiedzi
-  if (trimmed === '0' || trimmed === 'bez' || trimmed === 'brak' || trimmed === 'bez przesiadek' || trimmed === 'bezpośredni') {
-    return { valid: true, value: 'bez przesiadek', error: null };
+  if (trimmed === '0' || trimmed === 'bez' || trimmed === 'brak' || trimmed === 'bez przesiadek' || trimmed === 'bezpośredni' || trimmed === 'bezposredni') {
+    return { valid: true, value: '0', error: null };
   }
   
   if (trimmed === '1' || trimmed === 'jedna') {
-    return { valid: true, value: '1 przesiadka', error: null };
+    return { valid: true, value: '1', error: null };
   }
   
   if (trimmed === '2' || trimmed === 'dwie') {
-    return { valid: true, value: '2 przesiadki', error: null };
+    return { valid: true, value: '2', error: null };
   }
 
-  return { valid: true, value: przesiadki.trim(), error: null };
+  if (trimmed === '3' || trimmed === 'trzy') {
+    return { valid: true, value: '3', error: null };
+  }
+
+  // Sprawdź czy to liczba
+  const num = parseInt(trimmed, 10);
+  if (!isNaN(num) && num >= 0 && num <= 10) {
+    return { valid: true, value: num.toString(), error: null };
+  }
+
+  return { valid: false, value: null, error: 'Nieprawidłowa liczba przesiadek. Użyj liczby 0-10 lub słów: bez, jedna, dwie' };
 }
 
 /**
@@ -241,22 +250,50 @@ function validateMiasto(miasto) {
 }
 
 /**
- * Waliduje nazwę kraju
- * @param {string} kraj - Nazwa kraju
+ * Waliduje opis
+ * @param {string} opis - Opis miejsca docelowego
  * @returns {object} - { valid: boolean, value: string, error: string|null }
  */
-function validateKraj(kraj) {
-  if (!kraj || kraj.trim() === '') {
-    return { valid: false, value: null, error: 'Nazwa kraju jest wymagana' };
+function validateOpis(opis) {
+  if (!opis || opis.trim() === '') {
+    return { valid: true, value: '', error: null }; // Opis opcjonalny
   }
 
-  const trimmed = kraj.trim();
+  const trimmed = opis.trim();
   
-  if (trimmed.length < 2) {
-    return { valid: false, value: null, error: 'Nazwa kraju jest za krótka' };
+  if (trimmed.length > 1000) {
+    return { valid: false, value: null, error: 'Opis jest za długi (max 1000 znaków)' };
   }
 
   return { valid: true, value: trimmed, error: null };
+}
+
+/**
+ * Waliduje link do oferty
+ * @param {string} link - URL do oferty
+ * @returns {object} - { valid: boolean, value: string, error: string|null }
+ */
+function validateLink(link) {
+  if (!link || link.trim() === '') {
+    return { valid: true, value: '', error: null }; // Link opcjonalny
+  }
+
+  const trimmed = link.trim();
+  
+  // Prosta walidacja URL
+  const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
+  
+  if (!urlPattern.test(trimmed)) {
+    return { valid: false, value: null, error: 'Nieprawidłowy format linku. Upewnij się, że zaczyna się od http:// lub https://' };
+  }
+
+  // Dodaj https:// jeśli brakuje protokołu
+  let finalLink = trimmed;
+  if (!finalLink.startsWith('http://') && !finalLink.startsWith('https://')) {
+    finalLink = 'https://' + finalLink;
+  }
+
+  return { valid: true, value: finalLink, error: null };
 }
 
 /**
@@ -282,24 +319,7 @@ function validateOffer(offer, existingOffers) {
   const errors = [];
   const validatedOffer = {};
 
-  // Miasto
-  const miastoResult = validateMiasto(offer.miasto);
-  if (!miastoResult.valid) {
-    errors.push(`Miasto: ${miastoResult.error}`);
-  } else {
-    validatedOffer.miasto = miastoResult.value;
-  }
-
-  // Kraj
-  const krajResult = validateKraj(offer.kraj);
-  if (!krajResult.valid) {
-    errors.push(`Kraj: ${krajResult.error}`);
-  } else {
-    validatedOffer.kraj = krajResult.value;
-    validatedOffer.flaga = getFlagUrl(krajResult.value);
-  }
-
-  // Data wylotu
+  // Data wylotu (format: dd/mm/rrrr)
   const dataWylotuResult = validateData(offer.dataWylotu);
   if (!dataWylotuResult.valid) {
     errors.push(`Data wylotu: ${dataWylotuResult.error}`);
@@ -307,7 +327,7 @@ function validateOffer(offer, existingOffers) {
     validatedOffer.dataWylotu = dataWylotuResult.value;
   }
 
-  // Data powrotu
+  // Data powrotu (format: dd/mm/rrrr)
   const dataPowrotuResult = validateData(offer.dataPowrotu);
   if (!dataPowrotuResult.valid) {
     errors.push(`Data powrotu: ${dataPowrotuResult.error}`);
@@ -315,40 +335,54 @@ function validateOffer(offer, existingOffers) {
     validatedOffer.dataPowrotu = dataPowrotuResult.value;
   }
 
-  // Czas lotu
-  const czasResult = validateCzas(offer.czas);
-  if (!czasResult.valid) {
-    errors.push(`Czas lotu: ${czasResult.error}`);
+  // Skąd (miasto wylotu)
+  const skadResult = validateMiasto(offer.skad);
+  if (!skadResult.valid) {
+    errors.push(`Skąd: ${skadResult.error}`);
   } else {
-    validatedOffer.czas = czasResult.value;
+    validatedOffer.skad = skadResult.value;
+  }
+
+  // Dokąd (miasto przylotu)
+  const dokadResult = validateMiasto(offer.dokad);
+  if (!dokadResult.valid) {
+    errors.push(`Dokąd: ${dokadResult.error}`);
+  } else {
+    validatedOffer.dokad = dokadResult.value;
+  }
+
+  // Czas lotu
+  const czasLotuResult = validateCzasLotu(offer.czasLotu);
+  if (!czasLotuResult.valid) {
+    errors.push(`Czas lotu: ${czasLotuResult.error}`);
+  } else {
+    validatedOffer.czasLotu = czasLotuResult.value;
   }
 
   // Przesiadki
   const przesiadkiResult = validatePrzesiadki(offer.przesiadki);
-  validatedOffer.przesiadki = przesiadkiResult.value;
-
-  // Cena
-  const cenaResult = validateCena(offer.cena);
-  if (!cenaResult.valid) {
-    errors.push(`Cena: ${cenaResult.error}`);
+  if (!przesiadkiResult.valid) {
+    errors.push(`Przesiadki: ${przesiadkiResult.error}`);
   } else {
-    validatedOffer.cena = cenaResult.value;
+    validatedOffer.przesiadki = przesiadkiResult.value;
   }
 
-  // Kod wylotu
-  const kodWylotuResult = validateKodLotniska(offer.kodWylotu);
-  if (!kodWylotuResult.valid) {
-    errors.push(`Kod lotniska wylotu: ${kodWylotuResult.error}`);
-  } else {
-    validatedOffer.kodWylotu = kodWylotuResult.value;
-  }
+  // Opis (opcjonalny)
+  const opisResult = validateOpis(offer.opis || '');
+  validatedOffer.opis = opisResult.value;
 
-  // Kod przylotu
-  const kodPrzylotuResult = validateKodLotniska(offer.kodPrzylotu);
-  if (!kodPrzylotuResult.valid) {
-    errors.push(`Kod lotniska przylotu: ${kodPrzylotuResult.error}`);
-  } else {
-    validatedOffer.kodPrzylotu = kodPrzylotuResult.value;
+  // Link (opcjonalny)
+  const linkResult = validateLink(offer.link || '');
+  validatedOffer.link = linkResult.value;
+
+  // Cena (opcjonalna)
+  if (offer.cena) {
+    const cenaResult = validateCena(offer.cena);
+    if (!cenaResult.valid) {
+      errors.push(`Cena: ${cenaResult.error}`);
+    } else {
+      validatedOffer.cena = cenaResult.value;
+    }
   }
 
   // ID
@@ -364,12 +398,12 @@ function validateOffer(offer, existingOffers) {
 module.exports = {
   validateOffer,
   validateMiasto,
-  validateKraj,
   validateData,
   validateCena,
-  validateKodLotniska,
-  validateCzas,
+  validateCzasLotu,
   validatePrzesiadki,
+  validateOpis,
+  validateLink,
   getFlagUrl,
   generateId,
 };

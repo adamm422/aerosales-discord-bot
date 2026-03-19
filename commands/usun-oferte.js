@@ -12,7 +12,7 @@ module.exports = {
     .addStringOption(option =>
       option
         .setName('id')
-        .setDescription('ID oferty do usunięcia')
+        .setDescription('ID oferty do usunięcia (pełne ID lub pierwsze 6-10 znaków)')
         .setRequired(true)
     ),
 
@@ -34,13 +34,18 @@ module.exports = {
         return;
       }
 
+      // Obsługa zarówno starej jak i nowej struktury oferty
+      const from = result.deletedOffer.skad || result.deletedOffer.kodWylotu || '???';
+      const to = result.deletedOffer.dokad || result.deletedOffer.miasto || '???';
+      const price = result.deletedOffer.cena || 'Brak ceny';
+
       const successEmbed = new EmbedBuilder()
         .setColor(0x00FF00)
         .setTitle('🗑️ Oferta została usunięta')
-        .setDescription(`**${result.deletedOffer.miasto}** (${result.deletedOffer.kraj})`)
+        .setDescription(`**${from}** → **${to}**`)
         .addFields(
-          { name: 'ID', value: result.deletedOffer.id, inline: true },
-          { name: 'Cena', value: result.deletedOffer.cena, inline: true }
+          { name: 'ID', value: result.deletedOffer.id || '???', inline: true },
+          { name: 'Cena', value: price, inline: true }
         )
         .setFooter({ 
           text: `Usunięto przez ${interaction.user.tag}`,

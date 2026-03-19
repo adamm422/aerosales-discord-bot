@@ -173,7 +173,7 @@ async function getAllOffers() {
 }
 
 /**
- * Usuwa ofertę po ID
+ * Usuwa ofertę po ID (obsługuje pełne lub częściowe ID)
  * @param {string} offerId - ID oferty do usunięcia
  * @returns {Promise<object>} - Wynik operacji
  */
@@ -181,7 +181,22 @@ async function deleteOffer(offerId) {
   try {
     const { content: offers, sha } = await getOffersFile();
     
-    const index = offers.findIndex(o => o.id === offerId);
+    // Szukaj dokładnego dopasowania
+    let index = offers.findIndex(o => o.id === offerId);
+    
+    // Jeśli nie znaleziono, szukaj po częściowym ID (pierwsze 6+ znaków)
+    if (index === -1) {
+      const matches = offers.filter(o => o.id && o.id.startsWith(offerId));
+      if (matches.length === 1) {
+        index = offers.findIndex(o => o.id === matches[0].id);
+      } else if (matches.length > 1) {
+        return {
+          success: false,
+          error: `Znaleziono ${matches.length} ofert zaczynających się od "${offerId}". Podaj dokładniejsze ID.`,
+        };
+      }
+    }
+    
     if (index === -1) {
       return {
         success: false,
@@ -192,7 +207,11 @@ async function deleteOffer(offerId) {
     const deletedOffer = offers[index];
     offers.splice(index, 1);
 
-    const commitMessage = `Usunięto ofertę: ${deletedOffer.miasto} (${deletedOffer.kraj})`;
+    // Obsługa zarówno starej jak i nowej struktury oferty
+    const from = deletedOffer.skad || deletedOffer.miasto || '???';
+    const to = deletedOffer.dokad || deletedOffer.kraj || '???';
+    
+    const commitMessage = `Usunięto ofertę: ${from} → ${to}`;
     const commit = await saveOffersFile(offers, sha, commitMessage);
 
     return {

@@ -18,6 +18,14 @@ client.commands = loadCommands();
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`✅ Bot is ready! Logged in as ${readyClient.user.tag}`);
   console.log(`📊 Loaded ${client.commands.size} command(s)`);
+  
+  // Opcjonalnie: cleanup starych sesji co 15 minut
+  setInterval(() => {
+    const dodajOferte = client.commands.get('dodaj-oferte');
+    if (dodajOferte && dodajOferte.cleanupPendingOffers) {
+      dodajOferte.cleanupPendingOffers();
+    }
+  }, 15 * 60 * 1000);
 });
 
 // Interaction handler
@@ -62,11 +70,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     }
     
+    // Handle button interactions
+    if (interaction.isButton()) {
+      const command = client.commands.get('dodaj-oferte');
+      if (command && command.handleButton) {
+        const handled = await command.handleButton(interaction);
+        if (handled) return;
+      }
+    }
+    
     // Handle modal submissions
     if (interaction.isModalSubmit()) {
       const command = client.commands.get('dodaj-oferte');
-      if (command && interaction.customId === 'dodaj-oferte-modal') {
-        await command.handleModal(interaction);
+      if (!command) return;
+
+      // Modal 1 - pierwszy krok
+      if (interaction.customId === 'dodaj-oferte-modal-1') {
+        await command.handleModal1(interaction);
+        return;
+      }
+
+      // Modal 2 - drugi krok (customId zawiera tempId)
+      if (interaction.customId.startsWith('dodaj-oferte-modal-2-')) {
+        await command.handleModal2(interaction);
+        return;
       }
     }
   } catch (error) {

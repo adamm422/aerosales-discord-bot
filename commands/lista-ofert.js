@@ -42,7 +42,11 @@ module.exports = {
       }
 
       // Sortuj oferty po ID (od najnowszych)
-      const sortedOffers = [...offers].sort((a, b) => parseInt(b.id) - parseInt(a.id));
+      const sortedOffers = [...offers].sort((a, b) => {
+        const idA = parseInt(a.id?.split('_')[0] || 0, 10);
+        const idB = parseInt(b.id?.split('_')[0] || 0, 10);
+        return idB - idA;
+      });
       
       const startIndex = (page - 1) * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
@@ -56,9 +60,21 @@ module.exports = {
         .setTimestamp();
 
       for (const offer of pageOffers) {
+        // Obsługa zarówno starej struktury (miasto, kraj, kodWylotu, kodPrzylotu) 
+        // jak i nowej (skad, dokad)
+        const from = offer.skad || offer.kodWylotu || '???';
+        const to = offer.dokad || offer.miasto || '???';
+        const country = offer.kraj ? `(${offer.kraj})` : '';
+        const price = offer.cena || 'Brak ceny';
+        const departure = offer.dataWylotu || '??';
+        const return_ = offer.dataPowrotu || '??';
+        
+        // Skróć ID dla czytelności
+        const shortId = offer.id ? offer.id.split('_')[0]?.slice(-6) || offer.id.slice(0, 10) : '???';
+
         embed.addFields({
-          name: `${offer.id}. ${offer.miasto} (${offer.kraj})`,
-          value: `💰 ${offer.cena} | 📅 ${offer.dataWylotu} → ${offer.dataPowrotu} | ✈️ ${offer.kodWylotu} → ${offer.kodPrzylotu}`,
+          name: `${shortId}... ${from} → ${to} ${country}`,
+          value: `💰 ${price} | 📅 ${departure} → ${return_}`,
           inline: false,
         });
       }
