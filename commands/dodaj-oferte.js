@@ -74,7 +74,16 @@ module.exports = {
     modal.addComponents(row1, row2, row3, row4, row5);
 
     // Pokazanie modalu użytkownikowi
-    await interaction.showModal(modal);
+    try {
+      await interaction.showModal(modal);
+    } catch (error) {
+      // Jeśli interaction wygasł (3s), ignorujemy błąd
+      if (error.code === 40060 || error.code === 10062) {
+        console.log('Interaction expired before showing modal');
+        return;
+      }
+      throw error;
+    }
   },
 
   async handleModal(interaction) {
@@ -82,7 +91,16 @@ module.exports = {
 
     try {
       // DeferReply na początku - mamy 15 minut na odpowiedź
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      // Jeśli interaction wygasł, po prostu kończymy
+      try {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      } catch (deferError) {
+        if (deferError.code === 40060 || deferError.code === 10062) {
+          console.log('Interaction expired, cannot defer reply');
+          return;
+        }
+        throw deferError;
+      }
 
       // Pobierz dane z modalu
       const miasto = interaction.fields.getTextInputValue('miasto');
