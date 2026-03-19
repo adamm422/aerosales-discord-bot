@@ -97,18 +97,19 @@ async function saveOffersFile(offers, sha, message) {
 }
 
 /**
- * Dodaje nową ofertę do repozytorium
+ * Dodaje nową ofertę do repozytorium z retry przy konflikcie
  * @param {object} newOffer - Nowa oferta
+ * @param {number} retries - Liczba pozostałych prób
  * @returns {Promise<object>} - { success: boolean, offer: object, commit: object, error: string|null }
  */
-async function addOffer(newOffer) {
+async function addOffer(newOffer, retries = 3) {
   try {
     // Pobierz aktualne oferty
     const { content: offers, sha } = await getOffersFile();
 
     // Sprawdź czy oferta już istnieje (np. taki sam lot w tym samym terminie)
-    const exists = offers.some(o => 
-      o.miasto === newOffer.miasto && 
+    const exists = offers.some(o =>
+      o.miasto === newOffer.miasto &&
       o.dataWylotu === newOffer.dataWylotu &&
       o.dataPowrotu === newOffer.dataPowrotu
     );
@@ -140,6 +141,13 @@ async function addOffer(newOffer) {
       error: null,
     };
   } catch (error) {
+    // Przy konflikcie (409) spróbuj ponownie
+    if (error.message.includes('Konflikt') && retries > 0) {
+      console.log(`Konflikt przy zapisywaniu, ponawiam... (${retries} prób zostało)`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Czekaj 1s
+      return addOffer(newOffer, retries - 1);
+    }
+    
     console.error('Error adding offer:', error);
     return {
       success: false,

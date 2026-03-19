@@ -79,6 +79,9 @@ module.exports = {
   async handleModal(interaction) {
     if (interaction.customId !== 'dodaj-oferte-modal') return;
 
+    // Defer reply na początku - operacja GitHub może trwać długo
+    await interaction.deferReply();
+
     try {
       // Pobierz dane z modalu
       const miasto = interaction.fields.getTextInputValue('miasto');
@@ -108,9 +111,8 @@ module.exports = {
       const validation = validateOffer(offerData, existingOffers);
 
       if (!validation.valid) {
-        await interaction.reply({
+        await interaction.editReply({
           content: `❌ Błąd walidacji:\n${validation.errors.join('\n')}`,
-          ephemeral: true,
         });
         return;
       }
@@ -119,9 +121,8 @@ module.exports = {
       const result = await addOffer(validation.offer);
 
       if (!result.success) {
-        await interaction.reply({
+        await interaction.editReply({
           content: `❌ Błąd podczas zapisywania: ${result.error}`,
-          ephemeral: true,
         });
         return;
       }
@@ -140,19 +141,18 @@ module.exports = {
           { name: '⏱️ Czas lotu', value: validation.offer.czas, inline: true },
           { name: '🔄 Przesiadki', value: validation.offer.przesiadki, inline: true }
         )
-        .setFooter({ 
+        .setFooter({
           text: `Dodano przez ${interaction.user.tag} | ID: ${validation.offer.id}`,
           iconURL: interaction.user.displayAvatarURL(),
         })
         .setTimestamp();
 
-      await interaction.reply({ embeds: [successEmbed] });
+      await interaction.editReply({ embeds: [successEmbed] });
 
     } catch (error) {
       console.error('Error in modal:', error);
-      await interaction.reply({
+      await interaction.editReply({
         content: '❌ Wystąpił nieoczekiwany błąd podczas dodawania oferty.',
-        ephemeral: true,
       });
     }
   },
