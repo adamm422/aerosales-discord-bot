@@ -79,14 +79,6 @@ module.exports = {
   async handleModal(interaction) {
     if (interaction.customId !== 'dodaj-oferte-modal') return;
 
-    // Spróbuj deferReply jak najszybciej (3s limit)
-    try {
-      await interaction.deferReply();
-    } catch (deferError) {
-      console.log('Could not defer reply, interaction may have expired');
-      return;
-    }
-
     try {
       // Pobierz dane z modalu
       const miasto = interaction.fields.getTextInputValue('miasto');
@@ -108,51 +100,31 @@ module.exports = {
         przesiadki: 'bez przesiadek', // Domyślnie
       };
 
-      // Pobierz istniejące oferty do walidacji i generowania ID
-      const { getAllOffers } = require('../utils/github');
-      const existingOffers = await getAllOffers();
-
-      // Walidacja danych
-      const validation = validateOffer(offerData, existingOffers);
+      // Walidacja danych (bez pobierania z GitHub na razie)
+      const validation = validateOffer(offerData, []);
 
       if (!validation.valid) {
-        await interaction.editReply({
+        await interaction.reply({
           content: `❌ Błąd walidacji:\n${validation.errors.join('\n')}`,
+          ephemeral: true,
         });
         return;
       }
 
-      // Zapisz ofertę do GitHub
+      // Odpowiedz od razu - operacja GitHub w tle
+      await interaction.reply({
+        content: `⏳ Dodaję ofertę **${validation.offer.miasto}**... Sprawdź stronę za chwilę!`,
+        ephemeral: false,
+      });
+
+      // Wykonaj operację GitHub w tle
       const result = await addOffer(validation.offer);
 
-      if (!result.success) {
-        await interaction.editReply({
-          content: `❌ Błąd podczas zapisywania: ${result.error}`,
-        });
-        return;
+      if (result.success) {
+        console.log(`✅ Oferta dodana: ${validation.offer.miasto} (ID: ${validation.offer.id})`);
+      } else {
+        console.error(`❌ Błąd dodawania oferty: ${result.error}`);
       }
-
-      // Sukces - wyświetl potwierdzenie
-      const successEmbed = new EmbedBuilder()
-        .setColor(0x00FF00)
-        .setTitle('✅ Oferta została dodana!')
-        .setDescription(`**${validation.offer.miasto}** (${validation.offer.kraj})`)
-        .setThumbnail(validation.offer.flaga)
-        .addFields(
-          { name: '💰 Cena', value: validation.offer.cena, inline: true },
-          { name: '📅 Wylot', value: validation.offer.dataWylotu, inline: true },
-          { name: '📅 Powrót', value: validation.offer.dataPowrotu, inline: true },
-          { name: '✈️ Trasa', value: `${validation.offer.kodWylotu} → ${validation.offer.kodPrzylotu}`, inline: true },
-          { name: '⏱️ Czas lotu', value: validation.offer.czas, inline: true },
-          { name: '🔄 Przesiadki', value: validation.offer.przesiadki, inline: true }
-        )
-        .setFooter({
-          text: `Dodano przez ${interaction.user.tag} | ID: ${validation.offer.id}`,
-          iconURL: interaction.user.displayAvatarURL(),
-        })
-        .setTimestamp();
-
-      await interaction.editReply({ embeds: [successEmbed] });
 
     } catch (error) {
       console.error('Error in modal:', error);

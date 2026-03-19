@@ -261,16 +261,15 @@ function validateKraj(kraj) {
 
 /**
  * Generuje unikalne ID dla oferty
- * @param {Array} existingOffers - Istniejące oferty
+ * @param {Array} existingOffers - Istniejące oferty (opcjonalne)
  * @returns {string} - Nowe ID
  */
 function generateId(existingOffers) {
-  if (!existingOffers || existingOffers.length === 0) {
-    return '1';
-  }
-  
-  const maxId = Math.max(...existingOffers.map(o => parseInt(o.id) || 0));
-  return String(maxId + 1);
+  // Użyj timestamp + random dla unikalności
+  // Format: czas_w_milisekundach_6cyfr_random
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+  return `${timestamp}_${random}`;
 }
 
 /**
