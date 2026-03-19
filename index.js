@@ -59,12 +59,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // Handle modal submissions
     if (interaction.isModalSubmit()) {
       const command = client.commands.get('dodaj-oferte');
-      if (command) {
-        if (interaction.customId === 'dodaj-oferte-modal') {
-          await command.handleModal(interaction);
-        } else if (interaction.customId === 'dodaj-oferte-modal-2') {
-          await command.handleSecondModal(interaction);
-        }
+      if (command && interaction.customId === 'dodaj-oferte-modal') {
+        await command.handleModal(interaction);
       }
     }
   } catch (error) {

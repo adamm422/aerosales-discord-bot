@@ -20,12 +20,12 @@ module.exports = {
     .setDescription('Dodaje nową ofertę lotniczą do strony'),
 
   async execute(interaction) {
-    // Tworzenie modalu z polami do wypełnienia
+    // Tworzenie modalu ze wszystkimi polami (max 5 pól w Discord modal)
     const modal = new ModalBuilder()
       .setCustomId('dodaj-oferte-modal')
       .setTitle('🛫 Dodaj nową ofertę lotniczą');
 
-    // Pola modalu
+    // Pola modalu - tylko 5 pól (limit Discord)
     const miastoInput = new TextInputBuilder()
       .setCustomId('miasto')
       .setLabel('🏙️ Miasto docelowe')
@@ -63,14 +63,14 @@ module.exports = {
       .setStyle(TextInputStyle.Short)
       .setRequired(true);
 
-    // Pierwszy rząd - miasto i kraj
-    const firstRow = new ActionRowBuilder().addComponents(miastoInput);
-    const secondRow = new ActionRowBuilder().addComponents(krajInput);
-    const thirdRow = new ActionRowBuilder().addComponents(dataWylotuInput);
-    const fourthRow = new ActionRowBuilder().addComponents(dataPowrotuInput);
-    const fifthRow = new ActionRowBuilder().addComponents(cenaInput);
+    // Rządy modalu
+    const row1 = new ActionRowBuilder().addComponents(miastoInput);
+    const row2 = new ActionRowBuilder().addComponents(krajInput);
+    const row3 = new ActionRowBuilder().addComponents(dataWylotuInput);
+    const row4 = new ActionRowBuilder().addComponents(dataPowrotuInput);
+    const row5 = new ActionRowBuilder().addComponents(cenaInput);
 
-    modal.addComponents(firstRow, secondRow, thirdRow, fourthRow, fifthRow);
+    modal.addComponents(row1, row2, row3, row4, row5);
 
     // Pokazanie modalu użytkownikowi
     await interaction.showModal(modal);
@@ -87,100 +87,17 @@ module.exports = {
       const dataPowrotu = interaction.fields.getTextInputValue('dataPowrotu');
       const cena = interaction.fields.getTextInputValue('cena');
 
-      // Pokaż drugi modal z dodatkowymi informacjami
-      await this.showSecondModal(interaction, {
+      // Domyślne wartości dla pozostałych pól
+      const offerData = {
         miasto,
         kraj,
         dataWylotu,
         dataPowrotu,
         cena,
-      });
-
-    } catch (error) {
-      console.error('Error in first modal:', error);
-      // Nie możemy użyć reply bo modal już był zamknięty
-      // Więc po prostu logujemy błąd
-    }
-  },
-
-  async showSecondModal(interaction, firstModalData) {
-    // Stworzenie nowego modalu z dodatkowymi polami
-    const modal = new ModalBuilder()
-      .setCustomId('dodaj-oferte-modal-2')
-      .setTitle('🛫 Szczegóły lotu (2/2)');
-
-    const kodWylotuInput = new TextInputBuilder()
-      .setCustomId('kodWylotu')
-      .setLabel('✈️ Kod lotniska wylotu (IATA)')
-      .setPlaceholder('np. WMI (Modlin) lub WAW (Chopin)')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(3);
-
-    const kodPrzylotuInput = new TextInputBuilder()
-      .setCustomId('kodPrzylotu')
-      .setLabel('🛬 Kod lotniska przylotu (IATA)')
-      .setPlaceholder('np. CHQ (Chania)')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(3);
-
-    const czasInput = new TextInputBuilder()
-      .setCustomId('czas')
-      .setLabel('⏱️ Czas lotu')
-      .setPlaceholder('np. 2 godz. 55 min')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true);
-
-    const przesiadkiInput = new TextInputBuilder()
-      .setCustomId('przesiadki')
-      .setLabel('🔄 Przesiadki (opcjonalnie)')
-      .setPlaceholder('np. bez przesiadek lub 1 przesiadka')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(false);
-
-    // Ukryte pole do przekazania danych z pierwszego modala
-    const hiddenDataInput = new TextInputBuilder()
-      .setCustomId('hiddenData')
-      .setLabel('Dane z poprzedniego kroku (nie edytuj)')
-      .setValue(JSON.stringify(firstModalData))
-      .setStyle(TextInputStyle.Paragraph)
-      .setRequired(true);
-
-    const row1 = new ActionRowBuilder().addComponents(kodWylotuInput);
-    const row2 = new ActionRowBuilder().addComponents(kodPrzylotuInput);
-    const row3 = new ActionRowBuilder().addComponents(czasInput);
-    const row4 = new ActionRowBuilder().addComponents(przesiadkiInput);
-    const row5 = new ActionRowBuilder().addComponents(hiddenDataInput);
-
-    modal.addComponents(row1, row2, row3, row4, row5);
-
-    await interaction.showModal(modal);
-  },
-
-  async handleSecondModal(interaction) {
-    if (interaction.customId !== 'dodaj-oferte-modal-2') return;
-
-    await interaction.deferReply();
-
-    try {
-      // Pobierz dane z drugiego modala
-      const kodWylotu = interaction.fields.getTextInputValue('kodWylotu');
-      const kodPrzylotu = interaction.fields.getTextInputValue('kodPrzylotu');
-      const czas = interaction.fields.getTextInputValue('czas');
-      const przesiadki = interaction.fields.getTextInputValue('przesiadki') || 'bez przesiadek';
-      const hiddenDataStr = interaction.fields.getTextInputValue('hiddenData');
-
-      // Parsuj dane z pierwszego modala
-      const firstModalData = JSON.parse(hiddenDataStr);
-
-      // Połącz wszystkie dane
-      const offerData = {
-        ...firstModalData,
-        kodWylotu,
-        kodPrzylotu,
-        czas,
-        przesiadki,
+        kodWylotu: 'WMI',  // Domyślnie Modlin
+        kodPrzylotu: 'XXX', // Będzie do uzupełnienia
+        czas: '2 godz. 0 min', // Domyślnie
+        przesiadki: 'bez przesiadek', // Domyślnie
       };
 
       // Pobierz istniejące oferty do walidacji i generowania ID
@@ -191,16 +108,10 @@ module.exports = {
       const validation = validateOffer(offerData, existingOffers);
 
       if (!validation.valid) {
-        const errorEmbed = new EmbedBuilder()
-          .setColor(0xFF0000)
-          .setTitle('❌ Błąd walidacji')
-          .setDescription('Znaleziono błędy w danych oferty:')
-          .addFields(
-            validation.errors.map(error => ({ name: '⚠️', value: error, inline: false }))
-          )
-          .setFooter({ text: 'Popraw dane i spróbuj ponownie' });
-
-        await interaction.editReply({ embeds: [errorEmbed] });
+        await interaction.reply({
+          content: `❌ Błąd walidacji:\n${validation.errors.join('\n')}`,
+          ephemeral: true,
+        });
         return;
       }
 
@@ -208,13 +119,10 @@ module.exports = {
       const result = await addOffer(validation.offer);
 
       if (!result.success) {
-        const errorEmbed = new EmbedBuilder()
-          .setColor(0xFF0000)
-          .setTitle('❌ Błąd podczas zapisywania')
-          .setDescription(result.error)
-          .setFooter({ text: 'Spróbuj ponownie później' });
-
-        await interaction.editReply({ embeds: [errorEmbed] });
+        await interaction.reply({
+          content: `❌ Błąd podczas zapisywania: ${result.error}`,
+          ephemeral: true,
+        });
         return;
       }
 
@@ -238,12 +146,13 @@ module.exports = {
         })
         .setTimestamp();
 
-      await interaction.editReply({ embeds: [successEmbed] });
+      await interaction.reply({ embeds: [successEmbed] });
 
     } catch (error) {
-      console.error('Error in second modal:', error);
-      await interaction.editReply({
-        content: '❌ Wystąpił nieoczekiwany błąd podczas dodawania oferty. Spróbuj ponownie później.',
+      console.error('Error in modal:', error);
+      await interaction.reply({
+        content: '❌ Wystąpił nieoczekiwany błąd podczas dodawania oferty.',
+        ephemeral: true,
       });
     }
   },
