@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, MessageFlags } = require('discord.js');
 require('dotenv').config();
 
 const { loadCommands } = require('./utils/commandLoader');
@@ -37,21 +37,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
       } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
         
-        // Jeśli komenda pokazała modal, nie możemy odpowiadać
-        if (error.code === 40060) {
-          console.log('Modal was shown, skipping error reply');
+        // Jeśli komenda pokazała modal lub interaction wygasł, nie możemy odpowiadać
+        if (error.code === 40060 || error.code === 10062) {
+          console.log('Modal was shown or interaction expired, skipping error reply');
           return;
         }
         
-        const errorMessage = {
-          content: '❌ Wystąpił błąd podczas wykonywania komendy. Spróbuj ponownie później.',
-          ephemeral: true,
-        };
-
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp(errorMessage);
-        } else {
-          await interaction.reply(errorMessage);
+        // Odpowiedz tylko jeśli interaction nie był jeszcze obsłużony
+        try {
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({
+              content: '❌ Wystąpił błąd podczas wykonywania komendy.',
+              flags: MessageFlags.Ephemeral,
+            });
+          } else {
+            await interaction.reply({
+              content: '❌ Wystąpił błąd podczas wykonywania komendy.',
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+        } catch (replyError) {
+          console.log('Could not send error reply');
         }
       }
     }
