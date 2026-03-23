@@ -17,12 +17,11 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    try {
-      await interaction.deferReply();
-    } catch (e) {
-      console.log('[USUN-OFERTE] Interaction już wygasł');
-      return;
-    }
+    // Szybka odpowiedź żeby uniknąć timeout
+    await interaction.reply({
+      content: '🗑️ Trwa usuwanie oferty...',
+      flags: 64 // Ephemeral
+    });
 
     try {
       const offerId = interaction.options.getString('id');
@@ -36,7 +35,7 @@ module.exports = {
           .setTitle('❌ Błąd')
           .setDescription(result.error);
 
-        await interaction.editReply({ embeds: [errorEmbed] });
+        await interaction.editReply({ content: '', embeds: [errorEmbed] });
         return;
       }
 
@@ -53,13 +52,13 @@ module.exports = {
           { name: 'ID', value: result.deletedOffer.id || '???', inline: true },
           { name: 'Cena', value: price, inline: true }
         )
-        .setFooter({ 
+        .setFooter({
           text: `Usunięto przez ${interaction.user.tag}`,
           iconURL: interaction.user.displayAvatarURL(),
         })
         .setTimestamp();
 
-      await interaction.editReply({ embeds: [successEmbed] });
+      await interaction.editReply({ content: '', embeds: [successEmbed] });
 
     } catch (error) {
       console.error('Error deleting offer:', error);
