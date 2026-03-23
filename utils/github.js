@@ -15,6 +15,8 @@ const OFFERS_FILE_PATH = process.env.OFFERS_FILE_PATH || 'src/data/oferty.json';
  */
 async function getOffersFile() {
   try {
+    console.log(`[GITHUB] Pobieram plik: ${GITHUB_REPO}/${OFFERS_FILE_PATH} (branch: ${GITHUB_BRANCH})`);
+    
     const response = await axios.get(
       `https://api.github.com/repos/${GITHUB_REPO}/contents/${OFFERS_FILE_PATH}?ref=${GITHUB_BRANCH}`,
       {
@@ -27,14 +29,29 @@ async function getOffersFile() {
 
     // Dekoduj zawartość z base64
     const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-    const offers = JSON.parse(content);
+    console.log('[GITHUB] Pobrano zawartość, długość:', content.length);
+    
+    if (!content || content.trim() === '') {
+      throw new Error('Plik ofert jest pusty');
+    }
+
+    let offers;
+    try {
+      offers = JSON.parse(content);
+    } catch (parseError) {
+      console.error('[GITHUB] Błąd parsowania JSON:', parseError.message);
+      console.error('[GITHUB] Treść pliku (pierwsze 200 znaków):', content.substring(0, 200));
+      throw new Error('Plik ofert zawiera nieprawidłowy JSON');
+    }
+
+    console.log('[GITHUB] Parsowanie OK, liczba ofert:', offers.length);
 
     return {
       content: offers,
       sha: response.data.sha,
     };
   } catch (error) {
-    console.error('Error fetching offers file:', error.message);
+    console.error('[GITHUB] Błąd:', error.message);
     
     if (error.response?.status === 404) {
       throw new Error('Plik ofert nie został znaleziony w repozytorium');

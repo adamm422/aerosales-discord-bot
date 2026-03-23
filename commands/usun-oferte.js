@@ -17,10 +17,16 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    await interaction.deferReply();
+    try {
+      await interaction.deferReply();
+    } catch (e) {
+      console.log('[USUN-OFERTE] Interaction już wygasł');
+      return;
+    }
 
     try {
       const offerId = interaction.options.getString('id');
+      console.log('[USUN-OFERTE] Próba usunięcia oferty:', offerId);
       
       const result = await deleteOffer(offerId);
 
