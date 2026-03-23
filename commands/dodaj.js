@@ -318,9 +318,13 @@ module.exports = {
       };
       console.log('[DODAJ] fullData:', JSON.stringify(fullData, null, 2));
 
+      // Pobierz istniejące oferty (do generowania ID)
+      const { getAllOffers } = require('../utils/github');
+      const existingOffers = await getAllOffers();
+
       // Parsuj wszystkie dane
       console.log('[DODAJ] Parsuję dane...');
-      const result = parseOfferDataStep2(fullData);
+      const result = parseOfferDataStep2(fullData, existingOffers);
       console.log('[DODAJ] parseOfferDataStep2 result:', result.valid ? 'OK' : 'BŁĄD', result.errors);
 
       if (!result.valid) {
@@ -348,13 +352,13 @@ module.exports = {
       const successEmbed = new EmbedBuilder()
         .setColor(0x00FF00)
         .setTitle('✅ Oferta została dodana!')
-        .setDescription(`**${result.offer.skad.miasto}** → **${result.offer.dokad.miasto}**`)
+        .setDescription(`**${result.offer.kodWylotu}** → **${result.offer.miasto}**`)
         .addFields(
-          { name: '📅 Data', value: result.offer.dataPelna, inline: true },
-          { name: '💰 Cena', value: `${result.offer.cena} PLN`, inline: true },
-          { name: '🛫 Skąd', value: `${result.offer.skad.miasto} (${result.offer.skad.kod})`, inline: true },
-          { name: '🛬 Dokąd', value: `${result.offer.dokad.miasto} (${result.offer.dokad.kod})`, inline: true },
-          { name: '⏱️ Czas lotu', value: result.offer.czasLotu, inline: true },
+          { name: '📅 Data wylotu', value: result.offer.dataWylotu, inline: true },
+          { name: '💰 Cena', value: result.offer.cena, inline: true },
+          { name: '🛫 Z', value: result.offer.kodWylotu, inline: true },
+          { name: '🛬 Do', value: result.offer.kodPrzylotu, inline: true },
+          { name: '⏱️ Czas lotu', value: result.offer.czas, inline: true },
           { name: '🔄 Przesiadki', value: result.offer.przesiadki, inline: true },
           { name: '🔗 Link', value: `[Kup bilet](${result.offer.link})`, inline: false }
         )

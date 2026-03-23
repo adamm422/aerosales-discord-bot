@@ -691,11 +691,55 @@ function parseOfferData(data) {
 }
 
 /**
+ * Pobiera URL flagi kraju na podstawie miasta
+ * @param {string} miasto - Nazwa miasta
+ * @returns {string} - URL flagi
+ */
+function getFlagUrlByCity(miasto) {
+  const cityToCountry = {
+    'chania': 'grecja',
+    'kreta': 'grecja',
+    'korfu': 'grecja',
+    'ateny': 'grecja',
+    'londyn': 'wielka brytania',
+    'manchester': 'wielka brytania',
+    'liverpool': 'wielka brytania',
+    'paryz': 'francja',
+    'nicea': 'francja',
+    'marsylia': 'francja',
+    'rzym': 'wlochy',
+    'mediolan': 'wlochy',
+    'wenecja': 'wlochy',
+    'barcelona': 'hiszpania',
+    'madryt': 'hiszpania',
+    'malaga': 'hiszpania',
+    'lisbona': 'portugalia',
+    'porto': 'portugalia',
+    'antalya': 'turcja',
+    'stambul': 'turcja',
+    'izmir': 'turcja',
+    'hurghada': 'egipt',
+    'sharm': 'egipt',
+    'kair': 'egipt',
+    'dubaj': 'emiraty',
+    'abu dhabi': 'emiraty',
+    'malta': 'malta',
+    'valletta': 'malta',
+  };
+  
+  const citySlug = createSlug(miasto);
+  const kraj = cityToCountry[citySlug] || 'unknown';
+  return COUNTRY_FLAGS[kraj] || 'https://flagcdn.com/w640/unknown.png';
+}
+
+/**
  * Parsuje wszystkie dane oferty (dla kroku 2 z linkiem)
+ * Tworzy strukturę zgodną ze stroną
  * @param {object} data - Surowe dane z obu kroków
+ * @param {Array} existingOffers - Istniejące oferty (do generowania ID)
  * @returns {object} - { valid: boolean, offer: object|null, errors: string[] }
  */
-function parseOfferDataStep2(data) {
+function parseOfferDataStep2(data, existingOffers = []) {
   const errors = [];
   const offer = {};
 
@@ -703,28 +747,23 @@ function parseOfferDataStep2(data) {
   const skadResult = parseMiastoZKodem(data.skad);
   if (!skadResult.valid) {
     errors.push(`Skąd: ${skadResult.error}`);
-  } else {
-    offer.skad = { miasto: skadResult.miasto, kod: skadResult.kod };
   }
 
   // Parsuj Dokąd
   const dokadResult = parseMiastoZKodem(data.dokad);
   if (!dokadResult.valid) {
     errors.push(`Dokąd: ${dokadResult.error}`);
-  } else {
-    offer.dokad = { miasto: dokadResult.miasto, kod: dokadResult.kod };
   }
 
   // Parsuj datę
   const kiedyResult = parseDateRange(data.kiedy);
   if (!kiedyResult.valid) {
     errors.push(`Kiedy: ${kiedyResult.error}`);
-  } else {
-    offer.kiedy = kiedyResult.skrot;
-    offer.dataPelna = kiedyResult.pelna;
   }
 
   // Parsuj czas i przesiadki (format: "2.30, 0")
+  let czasLotu = '';
+  let przesiadki = '';
   const czasPrzesiadkiParts = data.czasPrzesiadki.split(',').map(s => s.trim());
   if (czasPrzesiadkiParts.length !== 2) {
     errors.push('Czas i przesiadki: Użyj formatu "czas, przesiadki" (np. "2.30, 0")');
@@ -735,13 +774,13 @@ function parseOfferDataStep2(data) {
     if (!czasResult.valid) {
       errors.push(`Czas lotu: ${czasResult.error}`);
     } else {
-      offer.czasLotu = czasResult.value;
+      czasLotu = czasResult.value;
     }
     
     if (!przesiadkiResult.valid) {
       errors.push(`Przesiadki: ${przesiadkiResult.error}`);
     } else {
-      offer.przesiadki = przesiadkiResult.value;
+      przesiadki = przesiadkiResult.value.toLowerCase();
     }
   }
 
@@ -749,23 +788,85 @@ function parseOfferDataStep2(data) {
   const cenaResult = validateCena(data.cena + ' PLN');
   if (!cenaResult.valid) {
     errors.push(`Cena: ${cenaResult.error}`);
-  } else {
-    offer.cena = parseInt(cenaResult.value.replace(' PLN', ''), 10);
   }
 
   // Waliduj link
   const linkResult = validateLink(data.link);
   if (!linkResult.valid) {
     errors.push(`Link: ${linkResult.error}`);
-  } else {
-    offer.link = linkResult.value;
   }
 
+  if (errors.length > 0) {
+    return { valid: false, offer: null, errors };
+  }
+
+  // Generuj ID na podstawie miasta docelowego
+  const citySlug = createSlug(dokadResult.miasto);
+  const id = generateId(dokadResult.miasto, existingOffers);
+
+  // Buduj ofertę w formacie strony
+  offer.id = id;
+  offer.miasto = dokadResult.miasto;
+  offer.kraj = getCountryName(dokadResult.miasto);
+  offer.flaga = getFlagUrlByCity(dokadResult.miasto);
+  offer.dataWylotu = kiedyResult.pelna;
+  offer.dataPowrotu = ''; // TODO: można dodać parsowanie daty powrotu
+  offer.czas = czasLotu;
+  offer.przesiadki = przesiadki;
+  offer.cena = cenaResult.value;
+  offer.kodWylotu = skadResult.kod;
+  offer.kodPrzylotu = dokadResult.kod;
+  offer.opis = '';
+  offer.atrakcje = [];
+  offer.zdjecia = [];
+  offer.link = linkResult.value;
+
   return {
-    valid: errors.length === 0,
-    offer: errors.length === 0 ? offer : null,
-    errors,
+    valid: true,
+    offer,
+    errors: [],
   };
+}
+
+/**
+ * Pobiera nazwę kraju na podstawie miasta
+ * @param {string} miasto - Nazwa miasta
+ * @returns {string} - Nazwa kraju
+ */
+function getCountryName(miasto) {
+  const cityToCountry = {
+    'chania': 'Grecja',
+    'kreta': 'Grecja',
+    'korfu': 'Grecja',
+    'ateny': 'Grecja',
+    'londyn': 'Wielka Brytania',
+    'manchester': 'Wielka Brytania',
+    'liverpool': 'Wielka Brytania',
+    'paryz': 'Francja',
+    'nicea': 'Francja',
+    'marsylia': 'Francja',
+    'rzym': 'Włochy',
+    'mediolan': 'Włochy',
+    'wenecja': 'Włochy',
+    'barcelona': 'Hiszpania',
+    'madryt': 'Hiszpania',
+    'malaga': 'Hiszpania',
+    'lisbona': 'Portugalia',
+    'porto': 'Portugalia',
+    'antalya': 'Turcja',
+    'stambul': 'Turcja',
+    'izmir': 'Turcja',
+    'hurghada': 'Egipt',
+    'sharm': 'Egipt',
+    'kair': 'Egipt',
+    'dubaj': 'Zjednoczone Emiraty Arabskie',
+    'abu dhabi': 'Zjednoczone Emiraty Arabskie',
+    'malta': 'Malta',
+    'valletta': 'Malta',
+  };
+  
+  const citySlug = createSlug(miasto);
+  return cityToCountry[citySlug] || 'Nieznany';
 }
 
 module.exports = {
