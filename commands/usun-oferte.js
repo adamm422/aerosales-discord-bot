@@ -3,7 +3,15 @@
  */
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { deleteOffer } = require('../utils/github');
+
+// Lazy load github utils to avoid blocking
+let deleteOffer;
+function getDeleteOffer() {
+  if (!deleteOffer) {
+    deleteOffer = require('../utils/github').deleteOffer;
+  }
+  return deleteOffer;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -29,7 +37,7 @@ module.exports = {
       const offerId = interaction.options.getString('id');
       console.log('[USUN-OFERTE] Próba usunięcia oferty:', offerId);
       
-      const result = await deleteOffer(offerId);
+      const result = await getDeleteOffer()(offerId);
 
       if (!result.success) {
         const errorEmbed = new EmbedBuilder()
