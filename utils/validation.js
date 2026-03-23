@@ -275,18 +275,12 @@ function validateOpis(opis) {
  */
 function validateLink(link) {
   if (!link || link.trim() === '') {
-    return { valid: true, value: '', error: null }; // Link opcjonalny
+    return { valid: false, value: null, error: 'Link jest wymagany' };
   }
 
   const trimmed = link.trim();
   
-  // Prosta walidacja URL
-  const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
-  
-  if (!urlPattern.test(trimmed)) {
-    return { valid: false, value: null, error: 'Nieprawidłowy format linku. Upewnij się, że zaczyna się od http:// lub https://' };
-  }
-
+  // Akceptuj każdy niepusty string jako link
   // Dodaj https:// jeśli brakuje protokołu
   let finalLink = trimmed;
   if (!finalLink.startsWith('http://') && !finalLink.startsWith('https://')) {
@@ -297,16 +291,58 @@ function validateLink(link) {
 }
 
 /**
- * Generuje unikalne ID dla oferty
- * @param {Array} existingOffers - Istniejące oferty (opcjonalne)
+ * Konwertuje polskie znaki na znaki bez ogonków i tworzy slug
+ * @param {string} text - Tekst do przetworzenia
+ * @returns {string} - Slug (małe litery, bez polskich znaków)
+ */
+function createSlug(text) {
+  const polishToLatin = {
+    'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n',
+    'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+    'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N',
+    'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'
+  };
+  
+  return text
+    .split('')
+    .map(char => polishToLatin[char] || char)
+    .join('')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Generuje unikalne ID dla oferty oparte na mieście docelowym
+ * Format: miasto1, miasto2, miasto3, ...
+ * @param {string} city - Nazwa miasta docelowego
+ * @param {Array} existingOffers - Istniejące oferty
  * @returns {string} - Nowe ID
  */
-function generateId(existingOffers) {
-  // Użyj timestamp + random dla unikalności
-  // Format: czas_w_milisekundach_6cyfr_random
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-  return `${timestamp}_${random}`;
+function generateId(city, existingOffers = []) {
+  const citySlug = createSlug(city);
+  
+  // Znajdź wszystkie oferty dla tego miasta
+  const cityOffers = existingOffers.filter(o => {
+    const offerCity = o.dokad || o.miasto || '';
+    return createSlug(offerCity) === citySlug;
+  });
+  
+  // Znajdź najwyższy numer
+  let maxNumber = 0;
+  for (const offer of cityOffers) {
+    if (offer.id) {
+      const match = offer.id.match(new RegExp(`^${citySlug}\\d+$`, 'i'));
+      if (match) {
+        const num = parseInt(offer.id.replace(new RegExp(`^${citySlug}`, 'i'), ''), 10);
+        if (!isNaN(num) && num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+    }
+  }
+  
+  // Generuj nowe ID: miasto(numer+1)
+  return `${citySlug}${maxNumber + 1}`;
 }
 
 /**
@@ -385,12 +421,349 @@ function validateOffer(offer, existingOffers) {
     }
   }
 
-  // ID
-  validatedOffer.id = generateId(existingOffers);
+  // ID - generuj na podstawie miasta docelowego
+  validatedOffer.id = generateId(validatedOffer.dokad, existingOffers);
 
   return {
     valid: errors.length === 0,
     offer: errors.length === 0 ? validatedOffer : null,
+    errors,
+  };
+}
+
+/**
+ * Parsuje miasto z kodem lotniska (format: "Miasto KOD")
+ * @param {string} input - np. "Warszawa WMI"
+ * @returns {object} - { valid: boolean, miasto: string, kod: string, error: string|null }
+ */
+function parseMiastoZKodem(input) {
+  if (!input || input.trim() === '') {
+    return { valid: false, miasto: null, kod: null, error: 'Pole jest wymagane' };
+  }
+
+  const trimmed = input.trim();
+  
+  // Szukaj wzorca: tekst + spacja + kod lotniska (2-4 litery)
+  const match = trimmed.match(/^(.+?)\s+([A-Z]{2,4})$/);
+  
+  if (!match) {
+    return {
+      valid: false,
+      miasto: null,
+      kod: null,
+      error: 'Nieprawidłowy format. Użyj: "Miasto KOD" (np. Warszawa WMI)'
+    };
+  }
+
+  const miasto = match[1].trim();
+  const kod = match[2].toUpperCase();
+
+  if (miasto.length < 2) {
+    return { valid: false, miasto: null, kod: null, error: 'Nazwa miasta jest za krótka' };
+  }
+
+  return { valid: true, miasto, kod, error: null };
+}
+
+/**
+ * Parsuje datę w formacie dd.mm-dd.mm.rr
+ * @param {string} input - np. "07.04-14.04.26" lub "7.04-14.04.2026"
+ * @returns {object} - { valid: boolean, skrot: string, pelna: string, error: string|null }
+ */
+function parseDateRange(input) {
+  if (!input || input.trim() === '') {
+    return { valid: false, skrot: null, pelna: null, error: 'Data jest wymagana' };
+  }
+
+  const trimmed = input.trim();
+  
+  // Wzorce: dd.mm-dd.mm.rr lub d.mm-dd.mm.rrrr lub dd.mm-dd.mm.rrrr
+  const match = trimmed.match(/^(\d{1,2})\.(\d{1,2})-(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+  
+  if (!match) {
+    return {
+      valid: false,
+      skrot: null,
+      pelna: null,
+      error: 'Nieprawidłowy format. Użyj: dd.mm-dd.mm.rr (np. 07.04-14.04.26)'
+    };
+  }
+
+  const dzienWylotu = parseInt(match[1], 10);
+  const miesiacWylotu = parseInt(match[2], 10);
+  const dzienPowrotu = parseInt(match[3], 10);
+  const miesiacPowrotu = parseInt(match[4], 10);
+  let rok = parseInt(match[5], 10);
+
+  // Obsługa roku (20xx)
+  if (rok < 100) {
+    rok = 2000 + rok;
+  }
+
+  // Walidacja dat
+  const months = {
+    1: 'stycznia', 2: 'lutego', 3: 'marca', 4: 'kwietnia',
+    5: 'maja', 6: 'czerwca', 7: 'lipca', 8: 'sierpnia',
+    9: 'września', 10: 'października', 11: 'listopada', 12: 'grudnia'
+  };
+
+  if (!months[miesiacWylotu] || !months[miesiacPowrotu]) {
+    return { valid: false, skrot: null, pelna: null, error: 'Nieprawidłowy miesiąc' };
+  }
+
+  // Sprawdź czy dzień jest prawidłowy
+  const daysInMonth = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const isLeapYear = (rok % 4 === 0 && rok % 100 !== 0) || (rok % 400 === 0);
+  if (isLeapYear) daysInMonth[2] = 29;
+
+  if (dzienWylotu < 1 || dzienWylotu > daysInMonth[miesiacWylotu] ||
+      dzienPowrotu < 1 || dzienPowrotu > daysInMonth[miesiacPowrotu]) {
+    return { valid: false, skrot: null, pelna: null, error: 'Nieprawidłowy dzień miesiąca' };
+  }
+
+  // Format skrócony (do pola "Kiedy")
+  const skrot = `${dzienWylotu.toString().padStart(2, '0')}.${miesiacWylotu.toString().padStart(2, '0')}-${dzienPowrotu.toString().padStart(2, '0')}.${miesiacPowrotu.toString().padStart(2, '0')}.${rok}`;
+  
+  // Format pełny (np. "7 kwietnia 2026")
+  const pelna = `${dzienWylotu} ${months[miesiacWylotu]} ${rok}`;
+
+  return {
+    valid: true,
+    skrot,
+    pelna,
+    dataWylotu: `${dzienWylotu.toString().padStart(2, '0')}/${miesiacWylotu.toString().padStart(2, '0')}/${rok}`,
+    dataPowrotu: `${dzienPowrotu.toString().padStart(2, '0')}/${miesiacPowrotu.toString().padStart(2, '0')}/${rok}`,
+    error: null
+  };
+}
+
+/**
+ * Parsuje czas lotu z formatu x.xx na "X godz. Y min"
+ * @param {string} input - np. "1.15" lub "15.20"
+ * @returns {object} - { valid: boolean, value: string, error: string|null }
+ */
+function parseCzasLotu(input) {
+  if (!input || input.trim() === '') {
+    return { valid: false, value: null, error: 'Czas lotu jest wymagany' };
+  }
+
+  const trimmed = input.trim().replace(',', '.');
+  
+  // Format: liczba.liczba (np. 1.15, 15.20)
+  const match = trimmed.match(/^(\d+)\.(\d{1,2})$/);
+  
+  if (!match) {
+    return {
+      valid: false,
+      value: null,
+      error: 'Nieprawidłowy format. Użyj: godziny.minuty (np. 2.30 lub 15.20)'
+    };
+  }
+
+  const godziny = parseInt(match[1], 10);
+  let minuty = parseInt(match[2], 10);
+  
+  // Jeśli minuty są podane jako jedna cyfra, przemnoż przez 10
+  if (match[2].length === 1) {
+    minuty = minuty * 10;
+  }
+
+  if (minuty > 59) {
+    return { valid: false, value: null, error: 'Minuty muszą być mniejsze niż 60' };
+  }
+
+  // Format wynikowy
+  if (minuty === 0) {
+    return { valid: true, value: `${godziny} godz.`, error: null };
+  }
+  return { valid: true, value: `${godziny} godz. ${minuty} min`, error: null };
+}
+
+/**
+ * Parsuje przesiadki - liczba na tekst
+ * @param {string} input - np. "0", "1", "2"
+ * @returns {object} - { valid: boolean, value: string, error: string|null }
+ */
+function parsePrzesiadki(input) {
+  if (!input || input.trim() === '') {
+    return { valid: false, value: null, error: 'Liczba przesiadek jest wymagana' };
+  }
+
+  const trimmed = input.trim();
+  const num = parseInt(trimmed, 10);
+
+  if (isNaN(num) || num < 0 || num > 10) {
+    return { valid: false, value: null, error: 'Podaj liczbę od 0 do 10' };
+  }
+
+  const forms = {
+    0: 'Bez przesiadek',
+    1: 'Jedna przesiadka',
+    2: 'Dwie przesiadki',
+    3: 'Trzy przesiadki',
+  };
+
+  if (forms[num]) {
+    return { valid: true, value: forms[num], error: null };
+  }
+  
+  return { valid: true, value: `${num} przesiadki`, error: null };
+}
+
+/**
+ * Główna funkcja parsująca dane oferty
+ * @param {object} data - Surowe dane z formularza
+ * @returns {object} - { valid: boolean, offer: object|null, errors: string[] }
+ */
+function parseOfferData(data) {
+  const errors = [];
+  const offer = {};
+
+  // Parsuj Skąd
+  const skadResult = parseMiastoZKodem(data.skad);
+  if (!skadResult.valid) {
+    errors.push(`Skąd: ${skadResult.error}`);
+  } else {
+    offer.skad = { miasto: skadResult.miasto, kod: skadResult.kod };
+  }
+
+  // Parsuj Dokąd
+  const dokadResult = parseMiastoZKodem(data.dokad);
+  if (!dokadResult.valid) {
+    errors.push(`Dokąd: ${dokadResult.error}`);
+  } else {
+    offer.dokad = { miasto: dokadResult.miasto, kod: dokadResult.kod };
+  }
+
+  // Parsuj datę
+  const kiedyResult = parseDateRange(data.kiedy);
+  if (!kiedyResult.valid) {
+    errors.push(`Kiedy: ${kiedyResult.error}`);
+  } else {
+    offer.dataWylotu = { skrot: kiedyResult.skrot, pelna: kiedyResult.pelna };
+    offer.dataPowrotu = { skrot: '', pelna: '' }; // placeholder
+    offer.kiedy = kiedyResult.skrot; // format skrócony
+    offer.dataPelna = kiedyResult.pelna; // format pełny
+  }
+
+  // Parsuj przesiadki
+  const przesiadkiResult = parsePrzesiadki(data.przesiadki);
+  if (!przesiadkiResult.valid) {
+    errors.push(`Przesiadki: ${przesiadkiResult.error}`);
+  } else {
+    offer.przesiadki = przesiadkiResult.value;
+  }
+
+  // Parsuj czas lotu
+  const czasResult = parseCzasLotu(data.czasLotu);
+  if (!czasResult.valid) {
+    errors.push(`Czas lotu: ${czasResult.error}`);
+  } else {
+    offer.czasLotu = czasResult.value;
+  }
+
+  // Parsuj cenę
+  const cenaResult = validateCena(data.cena + ' PLN');
+  if (!cenaResult.valid) {
+    errors.push(`Cena: ${cenaResult.error}`);
+  } else {
+    offer.cena = parseInt(cenaResult.value.replace(' PLN', ''), 10);
+  }
+
+  // Waliduj link
+  const linkResult = validateLink(data.link);
+  if (!linkResult.valid) {
+    errors.push(`Link: ${linkResult.error}`);
+  } else {
+    offer.link = linkResult.value;
+  }
+
+  // Generuj ID na podstawie miasta docelowego
+  if (offer.dokad && offer.dokad.miasto) {
+    offer.id = generateId(offer.dokad.miasto, []); // existingOffers będzie pobrane w addOffer
+  }
+
+  return {
+    valid: errors.length === 0,
+    offer: errors.length === 0 ? offer : null,
+    errors,
+  };
+}
+
+/**
+ * Parsuje wszystkie dane oferty (dla kroku 2 z linkiem)
+ * @param {object} data - Surowe dane z obu kroków
+ * @returns {object} - { valid: boolean, offer: object|null, errors: string[] }
+ */
+function parseOfferDataStep2(data) {
+  const errors = [];
+  const offer = {};
+
+  // Parsuj Skąd
+  const skadResult = parseMiastoZKodem(data.skad);
+  if (!skadResult.valid) {
+    errors.push(`Skąd: ${skadResult.error}`);
+  } else {
+    offer.skad = { miasto: skadResult.miasto, kod: skadResult.kod };
+  }
+
+  // Parsuj Dokąd
+  const dokadResult = parseMiastoZKodem(data.dokad);
+  if (!dokadResult.valid) {
+    errors.push(`Dokąd: ${dokadResult.error}`);
+  } else {
+    offer.dokad = { miasto: dokadResult.miasto, kod: dokadResult.kod };
+  }
+
+  // Parsuj datę
+  const kiedyResult = parseDateRange(data.kiedy);
+  if (!kiedyResult.valid) {
+    errors.push(`Kiedy: ${kiedyResult.error}`);
+  } else {
+    offer.kiedy = kiedyResult.skrot;
+    offer.dataPelna = kiedyResult.pelna;
+  }
+
+  // Parsuj czas i przesiadki (format: "2.30, 0")
+  const czasPrzesiadkiParts = data.czasPrzesiadki.split(',').map(s => s.trim());
+  if (czasPrzesiadkiParts.length !== 2) {
+    errors.push('Czas i przesiadki: Użyj formatu "czas, przesiadki" (np. "2.30, 0")');
+  } else {
+    const czasResult = parseCzasLotu(czasPrzesiadkiParts[0]);
+    const przesiadkiResult = parsePrzesiadki(czasPrzesiadkiParts[1]);
+    
+    if (!czasResult.valid) {
+      errors.push(`Czas lotu: ${czasResult.error}`);
+    } else {
+      offer.czasLotu = czasResult.value;
+    }
+    
+    if (!przesiadkiResult.valid) {
+      errors.push(`Przesiadki: ${przesiadkiResult.error}`);
+    } else {
+      offer.przesiadki = przesiadkiResult.value;
+    }
+  }
+
+  // Parsuj cenę
+  const cenaResult = validateCena(data.cena + ' PLN');
+  if (!cenaResult.valid) {
+    errors.push(`Cena: ${cenaResult.error}`);
+  } else {
+    offer.cena = parseInt(cenaResult.value.replace(' PLN', ''), 10);
+  }
+
+  // Waliduj link
+  const linkResult = validateLink(data.link);
+  if (!linkResult.valid) {
+    errors.push(`Link: ${linkResult.error}`);
+  } else {
+    offer.link = linkResult.value;
+  }
+
+  return {
+    valid: errors.length === 0,
+    offer: errors.length === 0 ? offer : null,
     errors,
   };
 }
@@ -406,4 +779,10 @@ module.exports = {
   validateLink,
   getFlagUrl,
   generateId,
+  parseOfferData,
+  parseOfferDataStep2,
+  parseMiastoZKodem,
+  parseDateRange,
+  parseCzasLotu,
+  parsePrzesiadki,
 };

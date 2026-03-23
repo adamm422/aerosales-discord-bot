@@ -12,7 +12,7 @@ module.exports = {
     .addStringOption(option =>
       option
         .setName('id')
-        .setDescription('ID oferty do usunięcia (pełne ID lub pierwsze 6-10 znaków)')
+        .setDescription('ID oferty (np. londyn1, paryz2, rzym1)')
         .setRequired(true)
     ),
 

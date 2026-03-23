@@ -18,14 +18,6 @@ client.commands = loadCommands();
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`✅ Bot is ready! Logged in as ${readyClient.user.tag}`);
   console.log(`📊 Loaded ${client.commands.size} command(s)`);
-  
-  // Opcjonalnie: cleanup starych sesji co 15 minut
-  setInterval(() => {
-    const dodajOferte = client.commands.get('dodaj-oferte');
-    if (dodajOferte && dodajOferte.cleanupPendingOffers) {
-      dodajOferte.cleanupPendingOffers();
-    }
-  }, 15 * 60 * 1000);
 });
 
 // Interaction handler
@@ -72,8 +64,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     
     // Handle button interactions
     if (interaction.isButton()) {
-      const command = client.commands.get('dodaj-oferte');
+      console.log('[INDEX] Button clicked:', interaction.customId);
+      const command = client.commands.get('dodaj');
       if (command && command.handleButton) {
+        console.log('[INDEX] Calling handleButton');
         const handled = await command.handleButton(interaction);
         if (handled) return;
       }
@@ -81,18 +75,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
     
     // Handle modal submissions
     if (interaction.isModalSubmit()) {
-      const command = client.commands.get('dodaj-oferte');
-      if (!command) return;
-
-      // Modal 1 - pierwszy krok
-      if (interaction.customId === 'dodaj-oferte-modal-1') {
-        await command.handleModal1(interaction);
+      console.log('[INDEX] Modal submitted:', interaction.customId);
+      const command = client.commands.get('dodaj');
+      if (!command) {
+        console.log('[INDEX] Command "dodaj" not found');
         return;
       }
 
-      // Modal 2 - drugi krok (customId zawiera tempId)
-      if (interaction.customId.startsWith('dodaj-oferte-modal-2-')) {
-        await command.handleModal2(interaction);
+      // Krok 1 - pierwszy modal
+      if (interaction.customId === 'dodaj-modal-krok1') {
+        console.log('[INDEX] Handling krok 1');
+        await command.handleModalKrok1(interaction);
+        return;
+      }
+
+      // Krok 2 - drugi modal (customId zawiera tempId)
+      if (interaction.customId.startsWith('dodaj-modal-krok2-')) {
+        console.log('[INDEX] Handling krok 2');
+        await command.handleModalKrok2(interaction);
         return;
       }
     }
