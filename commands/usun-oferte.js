@@ -17,11 +17,13 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    // Szybka odpowiedź żeby uniknąć timeout
-    await interaction.reply({
-      content: '🗑️ Trwa usuwanie oferty...',
-      flags: 64 // Ephemeral
-    });
+    // Użyj deferReply - daje nam 15 minut na odpowiedź
+    try {
+      await interaction.deferReply({ flags: 64 }); // Ephemeral
+    } catch (e) {
+      console.log('[USUN-OFERTE] Nie można deferować:', e.message);
+      return;
+    }
 
     try {
       const offerId = interaction.options.getString('id');
@@ -35,7 +37,7 @@ module.exports = {
           .setTitle('❌ Błąd')
           .setDescription(result.error);
 
-        await interaction.editReply({ content: '', embeds: [errorEmbed] });
+        await interaction.editReply({ embeds: [errorEmbed] });
         return;
       }
 
@@ -58,13 +60,17 @@ module.exports = {
         })
         .setTimestamp();
 
-      await interaction.editReply({ content: '', embeds: [successEmbed] });
+      await interaction.editReply({ embeds: [successEmbed] });
 
     } catch (error) {
       console.error('Error deleting offer:', error);
-      await interaction.editReply({
-        content: '❌ Wystąpił błąd podczas usuwania oferty. Spróbuj ponownie później.',
-      });
+      try {
+        await interaction.editReply({
+          content: '❌ Wystąpił błąd podczas usuwania oferty. Spróbuj ponownie później.',
+        });
+      } catch (e) {
+        console.log('[USUN-OFERTE] Nie można wysłać odpowiedzi o błędzie');
+      }
     }
   },
 };
