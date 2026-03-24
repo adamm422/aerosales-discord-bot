@@ -16,6 +16,7 @@ const {
 
 const { parseOfferData, parseOfferDataStep2 } = require('../utils/validation');
 const { addOffer } = require('../utils/github');
+const { generateOfferContent } = require('../utils/contentGenerator');
 
 // Tymczasowe przechowywanie danych z pierwszego kroku
 const pendingOffers = new Map();
@@ -334,6 +335,28 @@ module.exports = {
         });
         return true;
       }
+
+      // Generuj opis, atrakcje i zdjęcia dla oferty
+      await interaction.editReply({
+        content: '⏳ Generuję opis, atrakcje i pobieram zdjęcia...',
+      });
+      
+      console.log('[DODAJ] Generuję treść oferty...');
+      const { opis, atrakcje, zdjecia } = await generateOfferContent(
+        result.offer.miasto,
+        result.offer.kraj
+      );
+      
+      // Dodaj wygenerowaną treść do oferty
+      result.offer.opis = opis;
+      result.offer.atrakcje = atrakcje;
+      result.offer.zdjecia = zdjecia;
+      
+      console.log('[DODAJ] Treść wygenerowana:', {
+        opisLength: opis?.length,
+        atrakcjeCount: atrakcje?.length,
+        zdjeciaCount: zdjecia?.length
+      });
 
       console.log('[DODAJ] Zapisuję ofertę...');
       // Zapisz ofertę
