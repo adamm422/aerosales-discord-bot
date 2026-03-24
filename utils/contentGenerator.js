@@ -52,9 +52,17 @@ async function generateDescription(miasto, kraj) {
     return `${miasto} – fascynujące miasto w ${kraj}, które warto odwiedzić.`;
   }
 
-  const prompt = `Napisz krótki, porywający opis turystyczny miasta ${miasto} w ${kraj} (2-3 zdania po polsku). 
-Styl: entuzjastyczny, zachęcający do podróży. 
-Wzmianki: co najważniejsze do zobaczenia, charakter miasta, klimat.`;
+  const prompt = `Napisz szczegółowy, porywający opis turystyczny miasta ${miasto} w ${kraj} (4-5 zdań po polsku).
+
+WYMAGANIA:
+- Styl: entuzjastyczny, zachęcający do podróży, malowniczy
+- Wzmianki o konkretnych zabytkach, charakterystycznych miejscach lub unikalnych cechach miasta
+- Opisz klimat, atmosferę, co czyni to miejsce wyjątkowym
+- Unikaj ogólników typu "warto odwiedzić" - podaj konkrety
+- Długość: minimum 300 znaków, maksimum 500 znaków
+
+PRZYKŁAD DOBREGO OPISU:
+"Kreta – największa grecka wyspa, perła Morza Śródziemnego. Słynie z malowniczych plaż ze szmaragdową wodą, starożytnych ruin pałacu Knossos, majestatycznego wąwozu Samaria oraz urokliwych miasteczek z wenecką architekturą. Chania, zachodnia stolica wyspy, urzeka wąskimi uliczkami Starego Miasta, portem weneckim i latarniami morskimi."`;
 
   try {
     const response = await axios.post(
@@ -64,15 +72,15 @@ Wzmianki: co najważniejsze do zobaczenia, charakter miasta, klimat.`;
         messages: [
           {
             role: 'system',
-            content: 'Jesteś ekspertem od podróży. Piszesz zachęcające opisy miast po polsku.',
+            content: 'Jesteś doświadczonym pisarzem turystycznym. Tworzysz szczegółowe, barwne opisy miast po polsku. Używasz konkretnych nazw miejsc i zabytków.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
-        max_tokens: 200,
-        temperature: 0.7,
+        max_tokens: 400,
+        temperature: 0.8,
       },
       {
         headers: {
@@ -100,10 +108,24 @@ async function generateAttractions(miasto, kraj) {
     return getFallbackAttractions(miasto);
   }
 
-  const prompt = `Podaj 6 najważniejszych atrakcji turystycznych w mieście ${miasto} (${kraj}).
+  const prompt = `Podaj 6 najważniejszych, KONKRETNYCH atrakcji turystycznych w mieście ${miasto} (${kraj}).
+
+WYMAGANIA:
+- Podaj WYŁĄCZNIE rzeczywiste, nazwane miejsca (nie ogólniki typu "Stare Miasto" czy "Muzeum Narodowe")
+- Nazwy atrakcji muszą być konkretne i rozpoznawalne dla turystów
+- Uwzględnij różnorodność: zabytki, przyroda, kultura, architektura
+
+PRZYKŁADY DOBRYCH ATRAKCJI DLA MEDYOLANU:
+- Katedra Duomo di Milano (nie "Katedra")
+- Teatro alla Scala (nie "Teatr")
+- Galeria Vittorio Emanuele II (nie "Galeria handlowa")
+- Park Sempione (nie "Park Miejski")
+- Zamek Sforzów (Castello Sforzesco)
+- Kościół Santa Maria delle Grazie
+
 Zwróć wynik jako JSON array w formacie:
 [
-  { "nazwa": "Nazwa atrakcji", "typ": "historia|natura|miasto|kultura|architektura", "ikona": "Landmark" }
+  { "nazwa": "Konkretna Nazwa Atrakcji", "typ": "historia|natura|miasto|kultura|architektura", "ikona": "Landmark" }
 ]
 
 Dostępne ikony: Waves, Mountain, Landmark, Building2, Palmtree, Ship, Castle, Heart, Crown, Coffee, Church, Scroll, Trees, Columns, ShoppingBag, Cross, Shield, Building, Sun, Flag, Flower2, Home, Palette, MapPin, Umbrella, Footprints, Atom
@@ -118,15 +140,15 @@ Wybierz najbardziej pasujące ikony do typu atrakcji.`;
         messages: [
           {
             role: 'system',
-            content: 'Jesteś ekspertem od podróży. Zwracasz tylko poprawny JSON, bez dodatkowego tekstu.',
+            content: 'Jesteś ekspertem od podróży. Znasz konkretne, nazwane atrakcje turystyczne w każdym mieście. Zwracasz tylko poprawny JSON, bez dodatkowego tekstu.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
-        max_tokens: 500,
-        temperature: 0.5,
+        max_tokens: 600,
+        temperature: 0.7,
       },
       {
         headers: {
@@ -163,12 +185,15 @@ async function fetchUnsplashPhotos(miasto, kraj) {
   }
 
   try {
-    // Szukaj zdjęć miasta
+    // Szukaj zdjęć miasta z losową stroną aby unikać duplikatów
     const query = `${miasto} ${kraj} city travel`;
+    const randomPage = Math.floor(Math.random() * 5) + 1; // Losowa strona 1-5
+    
     const response = await axios.get('https://api.unsplash.com/search/photos', {
       params: {
         query: query,
-        per_page: 5,
+        per_page: 10,
+        page: randomPage,
         orientation: 'landscape',
       },
       headers: {
@@ -183,12 +208,17 @@ async function fetchUnsplashPhotos(miasto, kraj) {
       return getFallbackPhotos();
     }
 
-    // Pobierz URL-e zdjęć w odpowiednim rozmiarze
-    const photoUrls = photos.map(photo => {
-      return `${photo.urls.raw}&w=800&h=600&fit=crop`;
+    // Wybierz losowe 5 zdjęć z wyników
+    const shuffled = photos.sort(() => 0.5 - Math.random());
+    const selectedPhotos = shuffled.slice(0, 5);
+
+    // Pobierz URL-e zdjęć w odpowiednim rozmiarze z unikalnym parametrem
+    const photoUrls = selectedPhotos.map((photo, index) => {
+      const uniqueParam = `&sig=${Date.now()}_${index}`;
+      return `${photo.urls.raw}&w=800&h=600&fit=crop${uniqueParam}`;
     });
 
-    console.log('[CONTENT] Pobrano zdjęcia:', photoUrls.length);
+    console.log('[CONTENT] Pobrano zdjęcia (strona ${randomPage}):', photoUrls.length);
     return photoUrls;
   } catch (error) {
     console.error('[CONTENT] Błąd Unsplash:', error.response?.data?.errors?.[0] || error.message);
