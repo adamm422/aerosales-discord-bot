@@ -400,6 +400,10 @@ module.exports = {
       });
       
       console.log('[DODAJ] Generuję treść oferty...');
+      await interaction.editReply({
+        content: '⏳ Generuję opis, atrakcje i pobieram zdjęcia...\n🤖 OpenAI + Unsplash',
+      });
+      
       const { opis, atrakcje, zdjecia, kraj: detectedKraj } = await generateOfferContent(
         result.offer.miasto,
         result.offer.kraj

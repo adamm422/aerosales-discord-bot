@@ -16,6 +16,8 @@ const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
  */
 async function generateOfferContent(miasto, kraj) {
   console.log(`[CONTENT] Generowanie treści dla: ${miasto}, kraj: ${kraj}`);
+  console.log(`[CONTENT] OPENAI_API_KEY: ${OPENAI_API_KEY ? 'USTAWIONY' : 'BRAK'}`);
+  console.log(`[CONTENT] UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY ? 'USTAWIONY' : 'BRAK'}`);
 
   try {
     // Jeśli kraj nie jest podany lub jest nieznany, rozpoznaj go przez OpenAI
@@ -34,6 +36,9 @@ async function generateOfferContent(miasto, kraj) {
     ]);
 
     console.log('[CONTENT] Wygenerowano treść pomyślnie');
+    console.log(`[CONTENT] Opis: ${opis.substring(0, 50)}...`);
+    console.log(`[CONTENT] Atrakcje: ${atrakcje.length}`);
+    console.log(`[CONTENT] Zdjęcia: ${zdjecia.length}`);
 
     return {
       opis,
@@ -43,6 +48,7 @@ async function generateOfferContent(miasto, kraj) {
     };
   } catch (error) {
     console.error('[CONTENT] Błąd generowania treści:', error.message);
+    console.error('[CONTENT] Stack:', error.stack);
     // Zwróć fallbackowe dane w razie błędu
     return {
       opis: `${miasto} – fascynujące miasto, które warto odwiedzić. Oferuje niezapomniane wrażenia i wiele atrakcji dla turystów.`,
