@@ -400,10 +400,19 @@ module.exports = {
       });
       
       console.log('[DODAJ] Generuję treść oferty...');
-      const { opis, atrakcje, zdjecia } = await generateOfferContent(
+      const { opis, atrakcje, zdjecia, kraj: detectedKraj } = await generateOfferContent(
         result.offer.miasto,
         result.offer.kraj
       );
+      
+      // Jeśli OpenAI rozpoznał kraj, użyj go
+      if (detectedKraj && detectedKraj !== 'unknown') {
+        result.offer.kraj = detectedKraj;
+        // Pobierz flagę na podstawie rozpoznanego kraju
+        const { getFlagUrl } = require('../utils/validation');
+        result.offer.flaga = getFlagUrl(detectedKraj);
+        console.log(`[DODAJ] Rozpoznano kraj: ${detectedKraj}, flaga: ${result.offer.flaga}`);
+      }
       
       // Dodaj wygenerowaną treść do oferty
       result.offer.opis = opis;

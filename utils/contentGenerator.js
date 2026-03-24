@@ -18,11 +18,17 @@ async function generateOfferContent(miasto, kraj) {
   console.log(`[CONTENT] Generowanie treści dla: ${miasto}, ${kraj}`);
 
   try {
+    // Jeśli kraj nie jest podany, rozpoznaj go przez OpenAI
+    let detectedKraj = kraj;
+    if (!detectedKraj || detectedKraj === 'unknown') {
+      detectedKraj = await getCountryFromCity(miasto);
+    }
+
     // Generuj wszystko równolegle
     const [opis, atrakcje, zdjecia] = await Promise.all([
-      generateDescription(miasto, kraj),
-      generateAttractions(miasto, kraj),
-      fetchUnsplashPhotos(miasto, kraj),
+      generateDescription(miasto, detectedKraj || miasto),
+      generateAttractions(miasto, detectedKraj || miasto),
+      fetchUnsplashPhotos(miasto, detectedKraj || miasto),
     ]);
 
     console.log('[CONTENT] Wygenerowano treść pomyślnie');
@@ -31,14 +37,16 @@ async function generateOfferContent(miasto, kraj) {
       opis,
       atrakcje,
       zdjecia,
+      kraj: detectedKraj,
     };
   } catch (error) {
     console.error('[CONTENT] Błąd generowania treści:', error.message);
     // Zwróć fallbackowe dane w razie błędu
     return {
-      opis: `${miasto} – fascynujące miasto w ${kraj}, które warto odwiedzić. Oferuje niezapomniane wrażenia i wiele atrakcji dla turystów.`,
+      opis: `${miasto} – fascynujące miasto, które warto odwiedzić. Oferuje niezapomniane wrażenia i wiele atrakcji dla turystów.`,
       atrakcje: getFallbackAttractions(miasto),
       zdjecia: getFallbackPhotos(),
+      kraj: kraj || null,
     };
   }
 }
@@ -227,6 +235,67 @@ async function fetchUnsplashPhotos(miasto, kraj) {
 }
 
 /**
+ * Rozpoznaje kraj na podstawie miasta używając OpenAI
+ * @param {string} miasto - Nazwa miasta
+ * @returns {Promise<string>} - Nazwa kraju
+ */
+async function getCountryFromCity(miasto) {
+  if (!OPENAI_API_KEY) {
+    console.warn('[CONTENT] Brak klucza OpenAI, nie mogę rozpoznać kraju');
+    return null;
+  }
+
+  const prompt = `Podaj nazwę kraju, w którym znajduje się miasto: ${miasto}
+
+Zasady:
+- Zwróć TYLKO nazwę kraju, bez dodatkowego tekstu
+- Użyj polskiej nazwy kraju (np. "Włochy", nie "Italy")
+- Jeśli miasto to postać (np. "Londyn"), zwróć "Wielka Brytania"
+- Jeśli to wyspa (np. "Kreta", "Korfu"), zwróć odpowiedni kraj (np. "Grecja")
+
+Przykłady:
+- Zurich → Szwajcaria
+- Rzym → Włochy
+- Kreta → Grecja
+- Dubaj → Emiraty Arabskie
+- Paryż → Francja`;
+
+  try {
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'Jesteś ekspertem od geografii. Zwracasz tylko nazwę kraju po polsku, bez dodatkowego tekstu.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        max_tokens: 50,
+        temperature: 0.1,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const kraj = response.data.choices[0].message.content.trim();
+    console.log(`[CONTENT] Rozpoznano kraj dla ${miasto}: ${kraj}`);
+    return kraj;
+  } catch (error) {
+    console.error('[CONTENT] Błąd OpenAI (kraj):', error.response?.data?.error?.message || error.message);
+    return null;
+  }
+}
+
+/**
  * Zwraca fallbackowe atrakcje
  */
 function getFallbackAttractions(miasto) {
@@ -258,4 +327,5 @@ module.exports = {
   generateDescription,
   generateAttractions,
   fetchUnsplashPhotos,
+  getCountryFromCity,
 };
