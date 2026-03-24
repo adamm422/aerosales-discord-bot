@@ -8,8 +8,13 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 
 console.log('🔑 Sprawdzanie kluczy API:');
+console.log(`   OPENAI_API_KEY exists: ${!!process.env.OPENAI_API_KEY}`);
+console.log(`   OPENAI_API_KEY length: ${process.env.OPENAI_API_KEY?.length || 0}`);
+console.log(`   UNSPLASH_ACCESS_KEY exists: ${!!process.env.UNSPLASH_ACCESS_KEY}`);
+console.log(`   UNSPLASH_ACCESS_KEY length: ${process.env.UNSPLASH_ACCESS_KEY?.length || 0}`);
 console.log(`   OpenAI API: ${OPENAI_API_KEY ? '✅ Ustawiony' : '❌ BRAK - opisy będą generyczne'}`);
 console.log(`   Unsplash: ${UNSPLASH_ACCESS_KEY ? '✅ Ustawiony' : '❌ BRAK - zdjęcia będą losowe'}`);
+console.log(`   GITHUB_TOKEN exists: ${!!process.env.GITHUB_TOKEN}`);
 
 const client = new Client({
   intents: [
