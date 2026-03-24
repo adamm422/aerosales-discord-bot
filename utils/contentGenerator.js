@@ -15,13 +15,15 @@ const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
  * @returns {Promise<object>} - { opis, atrakcje, zdjecia }
  */
 async function generateOfferContent(miasto, kraj) {
-  console.log(`[CONTENT] Generowanie treści dla: ${miasto}, ${kraj}`);
+  console.log(`[CONTENT] Generowanie treści dla: ${miasto}, kraj: ${kraj}`);
 
   try {
-    // Jeśli kraj nie jest podany, rozpoznaj go przez OpenAI
+    // Jeśli kraj nie jest podany lub jest nieznany, rozpoznaj go przez OpenAI
     let detectedKraj = kraj;
-    if (!detectedKraj || detectedKraj === 'unknown') {
+    if (!detectedKraj || detectedKraj === 'unknown' || detectedKraj === 'Nieznany') {
+      console.log(`[CONTENT] Kraj nieznany, pytam OpenAI o: ${miasto}`);
       detectedKraj = await getCountryFromCity(miasto);
+      console.log(`[CONTENT] OpenAI odpowiedział: ${detectedKraj}`);
     }
 
     // Generuj wszystko równolegle

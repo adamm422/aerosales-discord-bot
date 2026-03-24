@@ -406,7 +406,7 @@ module.exports = {
       );
       
       // Jeśli OpenAI rozpoznał kraj, użyj go
-      if (detectedKraj && detectedKraj !== 'unknown') {
+      if (detectedKraj && detectedKraj !== 'unknown' && detectedKraj !== 'Nieznany') {
         result.offer.kraj = detectedKraj;
         // Pobierz flagę na podstawie rozpoznanego kraju
         const { getFlagUrl } = require('../utils/validation');
