@@ -553,8 +553,8 @@ function parseDateRange(input) {
 }
 
 /**
- * Parsuje czas lotu z formatu x.xx na "X godz. Y min"
- * @param {string} input - np. "1.15" lub "15.20"
+ * Parsuje czas lotu z formatu x.xx lub x na "X godz. Y min"
+ * @param {string} input - np. "1.15", "15.20", "2" lub "3.30"
  * @returns {object} - { valid: boolean, value: string, error: string|null }
  */
 function parseCzasLotu(input) {
@@ -564,6 +564,13 @@ function parseCzasLotu(input) {
 
   const trimmed = input.trim().replace(',', '.');
   
+  // Format: tylko godziny (np. "2", "15")
+  const hoursOnlyMatch = trimmed.match(/^(\d+)$/);
+  if (hoursOnlyMatch) {
+    const godziny = parseInt(hoursOnlyMatch[1], 10);
+    return { valid: true, value: `${godziny} godz.`, error: null };
+  }
+  
   // Format: liczba.liczba (np. 1.15, 15.20)
   const match = trimmed.match(/^(\d+)\.(\d{1,2})$/);
   
@@ -571,7 +578,7 @@ function parseCzasLotu(input) {
     return {
       valid: false,
       value: null,
-      error: 'Nieprawidłowy format. Użyj: godziny.minuty (np. 2.30 lub 15.20)'
+      error: 'Nieprawidłowy format. Użyj: godziny.minuty (np. 2.30 lub 15.20) lub same godziny (np. 2)'
     };
   }
 

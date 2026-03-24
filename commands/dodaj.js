@@ -20,6 +20,63 @@ const { generateOfferContent } = require('../utils/contentGenerator');
 
 // Tymczasowe przechowywanie danych z pierwszego kroku
 const pendingOffers = new Map();
+const offerTimeouts = new Map();
+
+// Czas ważności sesji: 10 minut (600000 ms)
+const SESSION_TIMEOUT = 600000;
+
+/**
+ * Zapisuje ofertę z timerem automatycznego usuwania
+ */
+function saveOfferWithTimeout(tempId, data) {
+  // Usuń stary timeout jeśli istnieje
+  if (offerTimeouts.has(tempId)) {
+    clearTimeout(offerTimeouts.get(tempId));
+  }
+  
+  // Zapisz dane
+  pendingOffers.set(tempId, data);
+  
+  // Ustaw nowy timeout
+  const timeout = setTimeout(() => {
+    console.log(`[DODAJ] Sesja wygasła dla: ${tempId}`);
+    pendingOffers.delete(tempId);
+    offerTimeouts.delete(tempId);
+  }, SESSION_TIMEOUT);
+  
+  offerTimeouts.set(tempId, timeout);
+}
+
+/**
+ * Pobiera ofertę i resetuje timer
+ */
+function getOfferAndResetTimeout(tempId) {
+  const data = pendingOffers.get(tempId);
+  if (data) {
+    // Resetuj timeout (usuń stary i ustaw nowy)
+    if (offerTimeouts.has(tempId)) {
+      clearTimeout(offerTimeouts.get(tempId));
+    }
+    const timeout = setTimeout(() => {
+      console.log(`[DODAJ] Sesja wygasła dla: ${tempId}`);
+      pendingOffers.delete(tempId);
+      offerTimeouts.delete(tempId);
+    }, SESSION_TIMEOUT);
+    offerTimeouts.set(tempId, timeout);
+  }
+  return data;
+}
+
+/**
+ * Usuwa ofertę i jej timer
+ */
+function deleteOffer(tempId) {
+  pendingOffers.delete(tempId);
+  if (offerTimeouts.has(tempId)) {
+    clearTimeout(offerTimeouts.get(tempId));
+    offerTimeouts.delete(tempId);
+  }
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -146,10 +203,10 @@ module.exports = {
         return true;
       }
 
-      // Zapisz dane tymczasowo
+      // Zapisz dane tymczasowo z timerem 10 minut
       const tempId = `${interaction.user.id}_${Date.now()}`;
-      pendingOffers.set(tempId, rawData);
-      console.log('[DODAJ] Zapisano dane, tempId:', tempId);
+      saveOfferWithTimeout(tempId, rawData);
+      console.log('[DODAJ] Zapisano dane, tempId:', tempId, '(ważne 10 min)');
 
       // Pokaż podsumowanie i przycisk do kroku 2
       const summaryEmbed = new EmbedBuilder()
@@ -207,7 +264,7 @@ module.exports = {
     // Anulowanie
     if (interaction.customId.startsWith('dodaj-anuluj-')) {
       const tempId = interaction.customId.replace('dodaj-anuluj-', '');
-      pendingOffers.delete(tempId);
+      deleteOffer(tempId);
 
       try {
         await interaction.update({
@@ -229,18 +286,18 @@ module.exports = {
     // Przejście do kroku 2
     if (interaction.customId.startsWith('dodaj-krok2-')) {
       const tempId = interaction.customId.replace('dodaj-krok2-', '');
-      const offerData = pendingOffers.get(tempId);
+      const offerData = getOfferAndResetTimeout(tempId);
 
       if (!offerData) {
         try {
           await interaction.reply({
-            content: '❌ Sesja wygasła. Rozpocznij dodawanie oferty od nowa.',
+            content: '❌ Sesja wygasła (ważna 10 minut). Rozpocznij dodawanie oferty od nowa.',
             flags: MessageFlags.Ephemeral,
           });
         } catch (e) {
           try {
             await interaction.update({
-              content: '❌ Sesja wygasła. Rozpocznij dodawanie oferty od nowa.',
+              content: '❌ Sesja wygasła (ważna 10 minut). Rozpocznij dodawanie oferty od nowa.',
               embeds: [],
               components: [],
             });
@@ -269,7 +326,7 @@ module.exports = {
         await interaction.showModal(modal);
       } catch (error) {
         console.error('Error showing modal 2:', error);
-        pendingOffers.delete(tempId);
+        deleteOffer(tempId);
         try {
           if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
@@ -298,7 +355,7 @@ module.exports = {
     if (!offerData) {
       try {
         await interaction.reply({
-          content: '❌ Sesja wygasła. Rozpocznij dodawanie oferty od nowa.',
+          content: '❌ Sesja wygasła (ważna 10 minut). Rozpocznij dodawanie oferty od nowa.',
           flags: MessageFlags.Ephemeral,
         });
       } catch (e) {}
@@ -330,7 +387,7 @@ module.exports = {
       console.log('[DODAJ] parseOfferDataStep2 result:', result.valid ? 'OK' : 'BŁĄD', result.errors);
 
       if (!result.valid) {
-        pendingOffers.delete(tempId);
+        deleteOffer(tempId);
         await interaction.editReply({
           content: `❌ Błąd walidacji:\n${result.errors.join('\n')}`,
         });
@@ -363,7 +420,7 @@ module.exports = {
       // Zapisz ofertę
       const saveResult = await addOffer(result.offer);
       console.log('[DODAJ] addOffer result:', saveResult.success ? 'OK' : 'BŁĄD', saveResult.error || '');
-      pendingOffers.delete(tempId);
+      deleteOffer(tempId);
 
       if (!saveResult.success) {
         await interaction.editReply({
@@ -401,7 +458,7 @@ module.exports = {
 
     } catch (error) {
       console.error('Error in modal krok 2:', error);
-      pendingOffers.delete(tempId);
+      deleteOffer(tempId);
       try {
         if (interaction.deferred) {
           await interaction.editReply({
