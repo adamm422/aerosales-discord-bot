@@ -127,14 +127,15 @@ async function addOffer(newOffer, retries = 3) {
     // Generuj unikalne ID na podstawie miasta docelowego (jeśli nie podano)
     if (!newOffer.id) {
       const { generateId } = require('./validation');
-      newOffer.id = generateId(newOffer.dokad.miasto, offers);
+      newOffer.id = generateId(newOffer.miasto, offers);
     }
 
     // Sprawdź czy oferta już istnieje (ten sam lot w tym samym terminie)
+    // Używamy kodów lotnisk do sprawdzenia duplikatów
     const exists = offers.some(o =>
-      o.skad?.miasto === newOffer.skad.miasto &&
-      o.dokad?.miasto === newOffer.dokad.miasto &&
-      o.kiedy === newOffer.kiedy
+      o.kodWylotu === newOffer.kodWylotu &&
+      o.kodPrzylotu === newOffer.kodPrzylotu &&
+      o.dataWylotu === newOffer.dataWylotu
     );
 
     if (exists) {
@@ -150,7 +151,7 @@ async function addOffer(newOffer, retries = 3) {
     offers.push(newOffer);
 
     // Zapisz do GitHub
-    const commitMessage = `Dodano ofertę: ${newOffer.skad.miasto} → ${newOffer.dokad.miasto} - ${newOffer.cena} PLN`;
+    const commitMessage = `Dodano ofertę: ${newOffer.kodWylotu} → ${newOffer.miasto} - ${newOffer.cena}`;
     const commit = await saveOffersFile(offers, sha, commitMessage);
 
     return {

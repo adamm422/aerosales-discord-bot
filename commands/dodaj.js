@@ -96,6 +96,7 @@ module.exports = {
     console.log('[DODAJ] Krok 1 - rozpoczynam');
 
     try {
+      // WAŻNE: deferReply musi być wywołane NATYCHMIAST (w ciągu 3 sekund)
       console.log('[DODAJ] deferReply...');
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       console.log('[DODAJ] deferReply OK');
