@@ -3,6 +3,14 @@ require('dotenv').config();
 
 const { loadCommands } = require('./utils/commandLoader');
 
+// Sprawdź klucze API
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
+
+console.log('🔑 Sprawdzanie kluczy API:');
+console.log(`   OpenAI API: ${OPENAI_API_KEY ? '✅ Ustawiony' : '❌ BRAK - opisy będą generyczne'}`);
+console.log(`   Unsplash: ${UNSPLASH_ACCESS_KEY ? '✅ Ustawiony' : '❌ BRAK - zdjęcia będą losowe'}`);
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -18,6 +26,11 @@ client.commands = loadCommands();
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`✅ Bot is ready! Logged in as ${readyClient.user.tag}`);
   console.log(`📊 Loaded ${client.commands.size} command(s)`);
+  
+  // Ostrzeżenie o braku kluczy
+  if (!OPENAI_API_KEY || !UNSPLASH_ACCESS_KEY) {
+    console.warn('⚠️  UWAGA: Brak kluczy API - generowanie treści będzie używać fallbacków!');
+  }
 });
 
 // Interaction handler
