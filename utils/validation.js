@@ -521,16 +521,31 @@ function parseDateRange(input) {
     return { valid: false, skrot: null, pelna: null, error: 'Nieprawidłowy dzień miesiąca' };
   }
 
-  // Format skrócony (do pola "Kiedy")
-  const skrot = `${dzienWylotu.toString().padStart(2, '0')}.${miesiacWylotu.toString().padStart(2, '0')}-${dzienPowrotu.toString().padStart(2, '0')}.${miesiacPowrotu.toString().padStart(2, '0')}.${rok}`;
+  // Format skrócony (do pola "Kiedy") - rok dwucyfrowy
+  const rokSkrot = rok.toString().slice(-2);
+  const skrot = `${dzienWylotu.toString().padStart(2, '0')}.${miesiacWylotu.toString().padStart(2, '0')}-${dzienPowrotu.toString().padStart(2, '0')}.${miesiacPowrotu.toString().padStart(2, '0')}.${rokSkrot}`;
   
-  // Format pełny (np. "7 kwietnia 2026")
-  const pelna = `${dzienWylotu} ${months[miesiacWylotu]} ${rok}`;
+  // Format pełny (np. "7-14 kwietnia 2026" lub "7 kwietnia - 14 maja 2026")
+  // Używany w lewym górnym rogu karty oferty
+  let pelna;
+  if (miesiacWylotu === miesiacPowrotu) {
+    // Ten sam miesiąc: "1-31 sierpnia 2026"
+    pelna = `${dzienWylotu}-${dzienPowrotu} ${months[miesiacWylotu]} ${rok}`;
+  } else {
+    // Różne miesiące: "28 lipca - 4 sierpnia 2026"
+    pelna = `${dzienWylotu} ${months[miesiacWylotu]} - ${dzienPowrotu} ${months[miesiacPowrotu]} ${rok}`;
+  }
+
+  // Pełne daty wylotu i powrotu osobno (do JSONa)
+  const dataWylotuPelna = `${dzienWylotu} ${months[miesiacWylotu]} ${rok}`;
+  const dataPowrotuPelna = `${dzienPowrotu} ${months[miesiacPowrotu]} ${rok}`;
 
   return {
     valid: true,
     skrot,
     pelna,
+    dataWylotuPelna,
+    dataPowrotuPelna,
     dataWylotu: `${dzienWylotu.toString().padStart(2, '0')}/${miesiacWylotu.toString().padStart(2, '0')}/${rok}`,
     dataPowrotu: `${dzienPowrotu.toString().padStart(2, '0')}/${miesiacPowrotu.toString().padStart(2, '0')}/${rok}`,
     error: null
@@ -809,8 +824,8 @@ function parseOfferDataStep2(data, existingOffers = []) {
   offer.miasto = dokadResult.miasto;
   offer.kraj = getCountryName(dokadResult.miasto);
   offer.flaga = getFlagUrlByCity(dokadResult.miasto);
-  offer.dataWylotu = kiedyResult.pelna;
-  offer.dataPowrotu = ''; // TODO: można dodać parsowanie daty powrotu
+  offer.dataWylotu = kiedyResult.dataWylotuPelna;
+  offer.dataPowrotu = kiedyResult.dataPowrotuPelna;
   offer.czas = czasLotu;
   offer.przesiadki = przesiadki;
   offer.cena = cenaResult.value;
